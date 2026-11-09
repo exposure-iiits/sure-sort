@@ -1,0 +1,30 @@
+# A single imported target for vcpkg (MSVC) and pkg-config/system installations.
+find_package(libraw CONFIG QUIET)
+if(TARGET libraw::raw_r)
+    add_library(LibRaw::LibRaw INTERFACE IMPORTED)
+    target_link_libraries(LibRaw::LibRaw INTERFACE libraw::raw_r)
+    # The compile-time guard in image_decoder.cpp also verifies the actual headers.
+    set(LibRaw_VERSION 0.21)
+    set(LibRaw_FOUND TRUE)
+    return()
+endif()
+find_path(LibRaw_INCLUDE_DIR NAMES libraw/libraw.h)
+find_library(LibRaw_LIBRARY NAMES raw_r raw libraw)
+if(LibRaw_INCLUDE_DIR)
+    file(STRINGS "${LibRaw_INCLUDE_DIR}/libraw/libraw_version.h" _raw_version
+        REGEX "^#define LIBRAW_(MAJOR|MINOR|PATCH)_VERSION")
+    foreach(part MAJOR MINOR PATCH)
+        string(REGEX MATCH "LIBRAW_${part}_VERSION[ \t]+([0-9]+)" _match "${_raw_version}")
+        set(_${part} "${CMAKE_MATCH_1}")
+    endforeach()
+    set(LibRaw_VERSION "${_MAJOR}.${_MINOR}.${_PATCH}")
+endif()
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(LibRaw REQUIRED_VARS LibRaw_LIBRARY LibRaw_INCLUDE_DIR
+    VERSION_VAR LibRaw_VERSION)
+if(LibRaw_FOUND AND NOT TARGET LibRaw::LibRaw)
+    add_library(LibRaw::LibRaw UNKNOWN IMPORTED)
+    set_target_properties(LibRaw::LibRaw PROPERTIES IMPORTED_LOCATION "${LibRaw_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${LibRaw_INCLUDE_DIR}")
+endif()
+mark_as_advanced(LibRaw_LIBRARY LibRaw_INCLUDE_DIR)

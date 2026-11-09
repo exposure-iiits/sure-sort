@@ -1,0 +1,10 @@
+/build/
+/.reference/
+/.deps/
+/dist/
+/CMakeUserPresets.json
+*.user
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite.lock

@@ -1,0 +1,7 @@
+{
+  "name": "photocull",
+  "version-string": "0.6.0",
+  "description": "SureSort native photo viewer and automatic sorting/processing",
+  "builtin-baseline": "a5f736224e85b32e25a8ffc52562333180396642",
+  "dependencies": [ { "name": "libraw", "version>=": "0.21.4" } ]
+}

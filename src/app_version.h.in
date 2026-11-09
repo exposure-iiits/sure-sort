@@ -1,0 +1,2 @@
+#pragma once
+#define SURESORT_VERSION "@PROJECT_VERSION@"
