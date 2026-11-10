@@ -12,6 +12,7 @@ public:
     static ExifMetadata read(const QString& path);
     void camera(const char* make,const char* model,float iso,float shutter,float aperture,float focal,const char* lens);
     QByteArray serialize(QSize finalSize) const;
+    QVector<QPair<QString, QString>> displayFields() const;
 private:
     struct Value {quint16 type;quint32 count;QByteArray bytes;};
     using Directory=QMap<quint16,Value>;

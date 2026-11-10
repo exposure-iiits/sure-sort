@@ -10,6 +10,7 @@ class QLabel;
 class QPushButton;
 class QHBoxLayout;
 class QStackedWidget;
+class QScrollArea;
 namespace photocull {
 class ShortcutManager;
 class WatermarkDialog;
@@ -18,10 +19,13 @@ class OutputDialog;
 class SettingsDialog;
 class DestinationCounter;
 class ShortcutsDialog;
+class PhotoPopup;
+class Filmstrip;
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(qint64 cacheBudget, QWidget* parent = nullptr, QString databasePath = {});
+    ~MainWindow() override;
     void openFolder(const QString& folder);
     void shutdown();
 private:
@@ -45,6 +49,10 @@ private:
     void rebuildDestinations();
     void updateQueue();
     void openSettings(int page = 0);
+    void togglePhotoPopup(bool histogram);
+    void layoutPhotoTools();
+    void updatePhotoPopup();
+    void applyViewerPreferences();
     FolderScanner scanner_;
     PreviewController controller_;
     SortingController sorting_;
@@ -73,5 +81,12 @@ private:
     QStackedWidget* workspace_;
     QWidget* photoPage_;
     EditPanel* editPanel_;
+    PhotoPopup* photoPopup_;
+    Filmstrip* filmstrip_;
+    QWidget* footer_;
+    QWidget* statusRow_;
+    QScrollArea* editScroll_;
+    QScrollArea* photoTools_;
+    QScrollArea* informationTools_;
 };
 }

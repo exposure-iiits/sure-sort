@@ -1,8 +1,10 @@
 # Editing workflow
 
-Open a photograph and toggle **Edit**. Adjust sliders, use the default hold-key chords or customize them by double-clicking a shortcut cell in the header's keyboard menu. Shortcut editing stays inside that panel. The panel's **Editing shortcuts** button opens its **Editing** category directly. Settings and Shortcuts share the main application window. Double-click any slider to reset it; **Reset All** clears tone, rotation and crop together. Settings apply to the current photo and remain when you browse away, return or restart. Originals and cached photographs remain unchanged.
+Open a photograph and toggle **Edit**. Adjust sliders or click a numeric value, type and press Enter (or move focus) to apply it. Subtle hints beside the controls show the current keyboard bindings. Customize bindings by double-clicking a shortcut cell in the header's keyboard window. The panel's **Editing shortcuts** button opens its **Editing** category directly. Settings and Shortcuts open as modal windows; close them before continuing in the main app. Double-click any slider to reset it; **Reset All** clears tone, rotation and crop together. Edits apply to the current photo and remain when you browse away, return or restart. Originals and cached photographs remain unchanged.
 
 **Settings → Editing → Keyboard editing step** sets the increment from 1 to 20 units (default 5); each exposure unit is 0.1 EV. The preference saves automatically and survives restarts. Keyboard rotation uses 90° steps; the rotation slider supports every degree from −180° to +180°. Application, folder and editing bindings are grouped in the keyboard menu. Double-click a Primary or Alternate cell, then press a key or hold-key chord to save immediately. Delete unassigns it; Esc cancels capture. Conflicts show a toast and leave the previous binding active. Editing alternates share the hold key.
+
+Dragging the rotation slider snaps within 4° of 0°, ±90° and ±180°. Hold Alt to bypass snapping, or type an exact degree value. Exposure values use EV with one decimal place; other adjustments use whole units.
 
 | Adjustment | Range | Default keyboard increment |
 | --- | --- | --- |

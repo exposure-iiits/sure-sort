@@ -1,6 +1,8 @@
 #pragma once
 #include "photo_edits.h"
 #include <QWidget>
+#include <QJsonArray>
+class QDoubleSpinBox;
 class QSlider;
 class QLabel;
 class QComboBox;
@@ -12,6 +14,7 @@ class EditPanel:public QWidget {
 public:
     explicit EditPanel(QWidget* parent=nullptr);
     void setEdits(const PhotoEdits& edits);
+    void setShortcutBindings(const QJsonArray& bindings);
 signals:
     void changed(photocull::PhotoEdits edits);
     void cropRequested();
@@ -22,8 +25,9 @@ protected:
 private:
     PhotoEdits edits_;
     QVector<QSlider*> sliders_;
-    QVector<QLabel*> values_;
+    QVector<QDoubleSpinBox*> values_;
+    QHash<QString,QLabel*> shortcutHints_;
     QSlider* rotation_;
-    QLabel* rotationValue_;
+    QDoubleSpinBox* rotationValue_;
 };
 }

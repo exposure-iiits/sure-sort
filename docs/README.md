@@ -4,8 +4,10 @@ Sure Sort is the desktop viewer and automatic sorting application; PhotoCull rem
 
 | Document | Purpose |
 | --- | --- |
-| [RELEASE-0.1.2.md](RELEASE-0.1.2.md) | Current release controls and changes |
+| [RELEASE-0.1.3.md](RELEASE-0.1.3.md) | Current local test build controls and changes |
+| [VALIDATION-0.1.3.md](VALIDATION-0.1.3.md) | Local Windows build and UI verification |
 | [VALIDATION-0.1.2.md](VALIDATION-0.1.2.md) | Release build and verification results |
+| [MACOS.md](MACOS.md) | Experimental MacBook build, cloud workflow and current platform limitations |
 | [RESEARCH.md](RESEARCH.md) | Reference repositories, inspected source revisions and adopted/rejected techniques |
 | [DESIGN.md](DESIGN.md) | Preview/processing architecture, threading, ownership, caching, SQLite and recovery |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Source map, local development workflow and implementation constraints |

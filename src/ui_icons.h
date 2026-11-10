@@ -10,6 +10,11 @@ inline QIcon uiIcon(const QString& name){
     if(name=="settings"){
         for(int i=0;i<8;++i){const double a=i*3.141592653589793/4;p.drawLine(QPointF(12+7.5*std::cos(a),12+7.5*std::sin(a)),QPointF(12+10*std::cos(a),12+10*std::sin(a)));}
         p.drawEllipse(QPointF(12,12),7.5,7.5);p.drawEllipse(QPointF(12,12),3,3);
+    }else if(name=="info"){
+        p.drawEllipse(QPointF(12,12),9,9);p.drawPoint(12,7);p.drawLine(12,11,12,17);
+    }else if(name=="histogram"){
+        p.drawLine(3,20,21,20);p.drawLine(3,20,3,4);
+        p.drawLine(7,19,7,13);p.drawLine(11,19,11,7);p.drawLine(15,19,15,10);p.drawLine(19,19,19,5);
     }else if(name=="keyboard"){
         p.drawRoundedRect(QRectF(2,5,20,14),3,3);for(int y:{9,12})for(int x:{6,10,14,18})p.drawPoint(x,y);p.drawLine(8,16,16,16);
     }else if(name=="plus"){

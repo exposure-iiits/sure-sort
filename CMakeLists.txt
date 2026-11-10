@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(PhotoCull VERSION 0.1.2 LANGUAGES CXX)
+project(PhotoCull VERSION 0.1.3 LANGUAGES CXX)
 configure_file(src/app_version.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/app_version.h @ONLY)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,7 +17,8 @@ add_library(photocull_core
     src/session_store.h src/session_store.cpp
     src/processing_pipeline.h src/processing_pipeline.cpp
     src/sorting_controller.h src/sorting_controller.cpp
-    src/watermark.h src/watermark.cpp src/photo_edits.h src/photo_edits.cpp)
+    src/watermark.h src/watermark.cpp src/photo_edits.h src/photo_edits.cpp
+    src/photo_information.h src/photo_information.cpp)
 target_include_directories(photocull_core PUBLIC src)
 target_link_libraries(photocull_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql PRIVATE LibRaw::LibRaw)
 add_library(photocull_ui src/photo_viewer.h src/photo_viewer.cpp
@@ -25,7 +26,8 @@ add_library(photocull_ui src/photo_viewer.h src/photo_viewer.cpp
     src/destination_dialog.h src/destination_dialog.cpp
     src/watermark_dialog.h src/watermark_dialog.cpp src/output_dialog.h src/output_dialog.cpp
     src/edit_panel.h src/edit_panel.cpp src/edit_shortcuts_dialog.h src/edit_shortcuts_dialog.cpp
-    src/settings_dialog.h src/settings_dialog.cpp src/ui_theme.h)
+    src/settings_dialog.h src/settings_dialog.cpp src/ui_theme.h
+    src/photo_popup.h src/photo_popup.cpp src/filmstrip.h src/filmstrip.cpp src/destination_chip.h)
 target_sources(photocull_ui PRIVATE src/shortcuts_dialog.h src/shortcuts_dialog.cpp)
 target_sources(photocull_ui PRIVATE src/destination_counter.h src/destination_counter.cpp)
 target_link_libraries(photocull_ui PUBLIC photocull_core Qt6::Widgets)
@@ -37,6 +39,14 @@ if(WIN32)
 endif()
 target_link_libraries(PhotoCull PRIVATE photocull_ui)
 set_target_properties(PhotoCull PROPERTIES WIN32_EXECUTABLE TRUE OUTPUT_NAME "Sure Sort")
+if(APPLE)
+    set_target_properties(PhotoCull PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "Sure Sort"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.suresort.desktop"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}")
+endif()
 function(photocull_warnings target)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8)
@@ -86,6 +96,11 @@ if(BUILD_TESTING)
     photocull_warnings(workflow_tests)
     add_test(NAME workflow_tests COMMAND workflow_tests)
     set_tests_properties(workflow_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 180)
+    add_executable(viewer_tools_tests tests/test_viewer_tools.cpp)
+    target_link_libraries(viewer_tools_tests PRIVATE photocull_ui Qt6::Test)
+    photocull_warnings(viewer_tools_tests)
+    add_test(NAME viewer_tools_tests COMMAND viewer_tools_tests)
+    set_tests_properties(viewer_tools_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 120)
 endif()
 add_executable(photocull_bench tools/benchmark.cpp)
 target_link_libraries(photocull_bench PRIVATE photocull_core)

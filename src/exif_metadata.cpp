@@ -1,6 +1,8 @@
 #include "exif_metadata.h"
 #include <QFile>
 #include <QSet>
+#include <QDateTime>
+#include <QLocale>
 #include <QtEndian>
 #include <cmath>
 #include <functional>
@@ -67,6 +69,34 @@ void ExifMetadata::camera(const char* make,const char* model,float iso,float shu
     if(std::isfinite(iso)&&iso>0&&!exif_.contains(34855))exif_.insert(34855,{3,1,u16(quint16(qBound(1.0,double(iso),65535.0)))});
     auto rational=[&](int tag,float value){if(std::isfinite(value)&&value>0&&value<4000&&!exif_.contains(tag))exif_.insert(tag,{5,1,u32(quint32(std::round(value*1000000)))+u32(1000000)});};
     rational(33434,shutter);rational(33437,aperture);rational(37386,focal);
+}
+QVector<QPair<QString, QString>> ExifMetadata::displayFields() const {
+    QVector<QPair<QString, QString>> fields;
+    auto text=[](const Directory& directory,int tag){return QString::fromUtf8(directory.value(tag).bytes).remove(QChar(0)).trimmed();};
+    auto number=[](const Directory& directory,int tag)->double {
+        const auto value=directory.value(tag);
+        if(value.type==3&&value.bytes.size()>=2)return qFromLittleEndian<quint16>(value.bytes.constData());
+        if(value.type==4&&value.bytes.size()>=4)return qFromLittleEndian<quint32>(value.bytes.constData());
+        if(value.type==5&&value.bytes.size()>=8){const auto denominator=qFromLittleEndian<quint32>(value.bytes.constData()+4);if(denominator)return double(qFromLittleEndian<quint32>(value.bytes.constData()))/denominator;}
+        return 0;
+    };
+    auto add=[&](const QString& name,const QString& value){if(!value.isEmpty())fields.append({name,value});};
+    const auto make=text(image_,271),model=text(image_,272);
+    add("Camera",model.startsWith(make,Qt::CaseInsensitive)?model:(make+" "+model).trimmed());
+    add("Lens",text(exif_,42036));
+    const auto iso=number(exif_,34855),aperture=number(exif_,33437),shutter=number(exif_,33434),focal=number(exif_,37386);
+    if(iso>0)add("ISO",QString::number(iso,'g',7));
+    if(aperture>0)add("Aperture","f/"+QString::number(aperture,'g',3));
+    if(shutter>0)add("Shutter",shutter<1?QString("1/%1 s").arg(qRound64(1/shutter)):QString::number(shutter,'g',4)+" s");
+    if(focal>0)add("Focal length",QString::number(focal,'g',4)+" mm");
+    const auto date=text(exif_,36867).isEmpty()?text(image_,306):text(exif_,36867);
+    const auto captured=QDateTime::fromString(date,"yyyy:MM:dd HH:mm:ss");
+    if(captured.isValid()){
+        add("Date taken",QLocale().toString(captured.date(),QLocale::LongFormat));
+        add("Time taken",captured.time().toString("HH:mm:ss")+(text(exif_,36881).isEmpty()?QString():" "+text(exif_,36881)));
+    }
+    add("Photographer",text(image_,315));add("Copyright",text(image_,33432));
+    return fields;
 }
 QByteArray ExifMetadata::serialize(QSize size) const {
     auto image=image_,exif=exif_,gps=gps_;

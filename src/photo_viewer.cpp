@@ -63,6 +63,12 @@ void PhotoViewer::setDetail(const DecodedImage& result) {
 void PhotoViewer::setMessage(QString text) { message_ = std::move(text); update(); }
 void PhotoViewer::setLoading(bool loading) { loading_ = loading; update(); }
 void PhotoViewer::showToast(const QString& text) { toast_=text;toastTimer_.start(1400);update(); }
+QImage PhotoViewer::histogramImage() const {
+    const auto& image=rendered_.isNull()?(detail_.isNull()?preview_:detail_):rendered_;
+    if(image.isNull())return {};
+    auto edits=edits_;if(!rendered_.isNull()){edits.exposure=edits.brightness=edits.contrast=edits.highlights=edits.shadows=edits.saturation=0;}
+    return renderEdits(image.scaled(512,512,Qt::KeepAspectRatio,Qt::SmoothTransformation),edits);
+}
 void PhotoViewer::setWatermark(const WatermarkSnapshot& snapshot) {watermark_=snapshot;update();}
 void PhotoViewer::updateFit() {
     if (!source_.isValid()) return;

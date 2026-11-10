@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- Prepare an experimental macOS app bundle, DMG packaging script and manually
+  triggered Apple Silicon GitHub Actions build. Mac builds remain unverified;
+  Move and automatic output removal still depend on Windows file locking.
+
+## 0.1.3 — 10 November 2026 (local test build)
+
+See [release notes](docs/RELEASE-0.1.3.md).
+
+- Rounded translucent photo information and edited-preview histogram cards.
+- Optional thumbnail strip with saved placement on any edge, hidden scrollbars, no filenames and bounded background decoding.
+- Green thumbnail outlines for photos successfully copied or moved to any current destination, with live undo/clear updates and restored session state.
+- Translucent edit card with editable adjustment values, current shortcut hints and rotation slider snapping.
+- Boxed footer keys, elided long folder names and scrollable crowded destinations.
+- Fullscreen hides only the status row; folder controls and thumbnails remain visible.
+- Modal Settings/Keyboard shortcuts windows and a visible double-click editing hint.
+
 ## 0.1.2 — 9 November 2026
 
 See [release notes](docs/RELEASE-0.1.2.md).

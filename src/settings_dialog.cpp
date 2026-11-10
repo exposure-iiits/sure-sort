@@ -14,6 +14,8 @@
 #include <QSlider>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
+#include <QCheckBox>
+#include <QComboBox>
 
 namespace photocull {
 namespace {
@@ -34,7 +36,7 @@ SettingsDialog::SettingsDialog(SortingController* sorting, ShortcutManager* shor
     : QDialog(parent), sorting_(sorting), shortcuts_(shortcuts) {
     setObjectName("settingsDialog");
     setWindowTitle("Sure Sort · Settings");
-    setModal(false);
+    setWindowModality(Qt::WindowModal);
     resize(960, 640);
     setMinimumSize(800, 540);
     auto* outer = new QHBoxLayout(this);
@@ -43,7 +45,7 @@ SettingsDialog::SettingsDialog(SortingController* sorting, ShortcutManager* shor
     sidebar_ = new QListWidget(this);
     sidebar_->setObjectName("settingsSidebar");
     sidebar_->setFixedWidth(160);
-    sidebar_->addItems({"Sorting", "Watermark", "Editing", "Saving", "About"});
+    sidebar_->addItems({"Sorting", "Watermark", "Editing", "Saving", "Viewing", "About"});
     outer->addWidget(sidebar_);
     auto* content = new QVBoxLayout;
     content->setContentsMargins(24, 22, 24, 18);
@@ -128,6 +130,15 @@ SettingsDialog::SettingsDialog(SortingController* sorting, ShortcutManager* shor
         if (!sorting_->setOutput(settings)) feedback_->setText("Output settings could not be saved. Check the processing status.");
     });
 
+    auto* viewing=new QWidget(this);auto* viewingLayout=new QVBoxLayout(viewing);viewingLayout->setContentsMargins(0,16,0,0);viewingLayout->setSpacing(12);
+    auto* filmstrip=new QCheckBox("Show photo thumbnail strip",viewing);filmstrip->setObjectName("showFilmstrip");filmstrip->setChecked(sorting_->uiPreferences().value("showFilmstrip").toBool(true));viewingLayout->addWidget(filmstrip);
+    auto* positionLabel=new QLabel("Thumbnail strip position",viewing);viewingLayout->addWidget(positionLabel);
+    auto* position=new QComboBox(viewing);position->setObjectName("filmstripPosition");for(const auto& item:QStringList{"Bottom","Top","Left","Right"})position->addItem(item,item.toLower());
+    const int savedPosition=position->findData(sorting_->uiPreferences().value("filmstripPosition").toString("left"));position->setCurrentIndex(qMax(0,savedPosition));viewingLayout->addWidget(position,0,Qt::AlignLeft);
+    connect(position,&QComboBox::currentIndexChanged,this,[this,position](int){auto preferences=sorting_->uiPreferences();const auto previous=preferences.value("filmstripPosition").toString("left");preferences["filmstripPosition"]=position->currentData().toString();if(sorting_->saveUiPreferences(preferences)){feedback_->clear();emit viewerPreferencesChanged();}else{QSignalBlocker block(position);position->setCurrentIndex(qMax(0,position->findData(previous)));feedback_->setText("Thumbnail position could not be saved.");}});
+    auto* viewingHelp=new QLabel("Click a thumbnail to jump to that photo. Place the cursor over the strip and use the mouse wheel or trackpad to scroll.\n\nFolders and thumbnails stay visible in fullscreen; only the photo status row is hidden. Preferences save automatically.",viewing);viewingHelp->setWordWrap(true);viewingLayout->addWidget(viewingHelp);viewingLayout->addStretch();pages_->addWidget(viewing);
+    connect(filmstrip,&QCheckBox::toggled,this,[this,filmstrip](bool enabled){auto preferences=sorting_->uiPreferences();preferences["showFilmstrip"]=enabled;if(sorting_->saveUiPreferences(preferences)){feedback_->clear();emit viewerPreferencesChanged();}else{QSignalBlocker block(filmstrip);filmstrip->setChecked(!enabled);feedback_->setText("Thumbnail preference could not be saved.");}});
+
     auto* about = new QLabel(
         "<span style='font-size:24px;font-weight:600'>Sure Sort</span><br><br>"
         "A quiet workspace for browsing, editing and sorting photographs.<br><br>"
@@ -173,12 +184,13 @@ void SettingsDialog::showPage(Page page) {
 }
 
 void SettingsDialog::selectPage(int page) {
-    const QStringList titles = {"Sorting folders", "Watermark", "Quick editing", "Saving", "About"};
+    const QStringList titles = {"Sorting folders", "Watermark", "Quick editing", "Saving", "Viewing", "About"};
     const QStringList descriptions = {
         "Choose an output folder, then give each sorting folder a key. Save folders to apply changes.",
         "Preview your logo on the current photograph. Watermark changes save automatically.",
         "Edit with the keyboard, or reveal the sliders beside your photograph.",
         "Quality, image size and metadata. Changes save automatically for future assignments.",
+        "Choose how you browse your photographs.",
         "Fast, local photo culling."
     };
     if (page < 0 || page >= titles.size()) return;

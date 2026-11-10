@@ -34,6 +34,7 @@ public:
     bool isFit() const { return fit_; }
     bool hasDetail() const { return !detail_.isNull(); }
     bool hasPhoto() const {return !preview_.isNull();}
+    QImage histogramImage() const;
     double zoomPercent() const { return scale_ * devicePixelRatioF() * 100.0; }
     void fit();
     void actualSize();

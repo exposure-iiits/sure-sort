@@ -2,17 +2,21 @@
 
 A native, offline C++17/Qt Widgets viewer and keyboard sorting tool for Windows 10/11 x64. Sure Sort combines photo browsing, editing, watermarking and automatic keyboard sorting with per-folder Copy/Move actions. Browsing, keyboard sorting, automatic RAW development and watermarking remain intact. Copy preserves originals; Move relocates them safely with Ctrl+Z restoration. Sorting automatically saves the final image without an Export or Apply action.
 
-Current version: **0.1.2**, shown in **Settings → About**. See [versioning](docs/VERSIONING.md).
+Current version: **0.1.3**, shown in **Settings → About**. See [versioning](docs/VERSIONING.md).
+
+For MacBook packaging, see the [experimental macOS cloud build](docs/MACOS.md).
+It prepares a macOS `.dmg` on a Mac/GitHub runner; no Mac installer is included
+in the Windows distribution. Move and verified output removal need a macOS port.
 
 For the GitHub source package and ongoing development, start with [START_HERE.md](START_HERE.md). Prebuilt Windows files are distributed separately from the source.
 
-See [0.1.2 changes and controls](docs/RELEASE-0.1.2.md). The portable package is in `dist/Sure-Sort-0.1.2-Windows-x64-Portable.zip`.
+See [0.1.3 changes and controls](docs/RELEASE-0.1.3.md). The portable package is in `dist/Sure-Sort-0.1.3-Windows-x64-Portable.zip`.
 
 ## Run the local verification build
 
 Portable builds include a `portable.ini` marker and keep settings/session history in `data/` beside the executable. Extract the complete ZIP to a writable folder and launch **Sure Sort.exe**. Share the original ZIP so your personal session history is excluded. `--portable` also enables this mode; an explicit `--session-db` takes precedence. The executable includes the minimal folder/checkmark app logo; editable artwork is in `assets/suresort.svg`.
 
-Open `dist\Sure Sort 0.1.2\Sure Sort.exe`. Keep its adjacent DLLs and plugin folders together. The portable package uses Qt 6.8.3, MinGW GCC 13.1 and dynamic LibRaw 0.21.4. It is an unsigned local verification build. MSVC and Windows 10 have not been tested here. Generated files in `build/`, `.deps/`, and `dist/` are ignored by Git.
+Open `dist\Sure Sort 0.1.3\Sure Sort.exe`. Keep its adjacent DLLs and plugin folders together. The portable package uses Qt 6.8.3, MinGW GCC 13.1 and dynamic LibRaw 0.21.4. It is an unsigned local verification build. MSVC and Windows 10 have not been tested here. Generated files in `build/`, `.deps/`, and `dist/` are ignored by Git.
 
 ```powershell
 & '.\dist\Sure Sort\Sure Sort.exe'

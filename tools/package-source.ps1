@@ -7,7 +7,7 @@ New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ZipPath) | Out-Nu
 $files = @(Get-ChildItem -LiteralPath $projectRoot -File -Force | Where-Object {
     $_.Name -in @('.gitignore','CMakeLists.txt','CMakePresets.json','vcpkg.json') -or $_.Extension -eq '.md'
 })
-foreach ($folder in @('src','tests','tools','cmake','assets','docs','third_party')) {
+foreach ($folder in @('src','tests','tools','cmake','assets','docs','third_party','.github')) {
     $files += Get-ChildItem -LiteralPath (Join-Path $projectRoot $folder) -File -Recurse
 }
 $archive = [IO.Compression.ZipFile]::Open($ZipPath, [IO.Compression.ZipArchiveMode]::Create)

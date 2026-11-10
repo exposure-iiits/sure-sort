@@ -14,11 +14,12 @@ class SortingController;
 class SettingsDialog : public QDialog {
     Q_OBJECT
 public:
-    enum Page { Sorting, Watermark, Editing, Saving, About };
+    enum Page { Sorting, Watermark, Editing, Saving, Viewing, About };
     SettingsDialog(SortingController* sorting, ShortcutManager* shortcuts, QWidget* parent = nullptr);
     void showPage(Page page);
 signals:
     void editingRequested();
+    void viewerPreferencesChanged();
 private:
     void selectPage(int page);
     void saveCurrentPage();

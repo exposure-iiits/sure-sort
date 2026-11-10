@@ -86,6 +86,8 @@ private slots:
     void exifSanitized_data(){QTest::addColumn<bool>("big");QTest::newRow("little")<<false;QTest::newRow("big")<<true;}
     void exifSanitized(){
         QFETCH(bool,big);QTemporaryDir dir;const auto source=dir.filePath("photo.jpg");const auto original=withExif(encode(pattern({600,400})),tiff(big));QVERIFY(write(source,original));
+        const auto fields=ExifMetadata::read(source).displayFields();QMap<QString,QString> info;for(const auto& field:fields)info.insert(field.first,field.second);
+        QCOMPARE(info.value("Camera"),QString("SONY"));QCOMPARE(info.value("Shutter"),QString("1/125 s"));QVERIFY(!info.value("Date taken").isEmpty());QCOMPARE(info.value("Time taken"),QString("03:04:05"));
         auto t=task(source,dir.filePath("out"));t.output.resolution=50;t.edits.rotation=1;auto p=ProcessingPipeline::prepare(t,{});QCOMPARE(p.status,"prepared");const auto bytes=read(p.temporaryPath),meta=jpegTiff(bytes);QVERIFY(meta.startsWith("II"));
         QVERIFY(meta.contains("SONY"));QVERIFY(meta.contains("2025:01:02 03:04:05"));QVERIFY(!meta.contains("BADNOTE!"));
         QCOMPARE(number(meta,8,274),1u);QCOMPARE(number(meta,8,256),300u);QCOMPARE(number(meta,8,257),200u);

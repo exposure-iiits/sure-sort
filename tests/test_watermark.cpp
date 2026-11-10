@@ -3,6 +3,7 @@
 #include "photo_viewer.h"
 #include "sorting_controller.h"
 #include "main_window.h"
+#include "settings_dialog.h"
 #include "raw_fixture.h"
 #include <QApplication>
 #include <QBuffer>
@@ -265,7 +266,7 @@ private slots:
         window.findChild<QAction*>("watermarkSettings")->trigger();auto* dialog=window.findChild<WatermarkDialog*>();QVERIFY(dialog);QVERIFY(!dialog->isModal());
         dialog->findChild<QSlider*>("watermarkSize")->setValue(30);dialog->move(window.x()+780,window.y()+90);
         if(qEnvironmentVariableIsSet("PHOTOCULL_PHASE3_SCREENSHOT")){QCoreApplication::processEvents();QVERIFY(window.grab().save(qEnvironmentVariable("PHOTOCULL_PHASE3_SCREENSHOT")));QVERIFY(dialog->grab().save(qEnvironmentVariable("PHOTOCULL_PHASE3_SCREENSHOT")+".dialog.png"));}
-        dialog->close();window.activateWindow();viewer->setFocus();QTest::keyClick(viewer,Qt::Key_1);
+        window.findChild<SettingsDialog*>()->close();QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);window.activateWindow();viewer->setFocus();QTest::keyClick(viewer,Qt::Key_1);
         bool advanced=false;for(const auto* label:window.findChildren<QLabel*>())if(label->text()=="2 / 2")advanced=true;QVERIFY(advanced);
         QTRY_VERIFY(QFileInfo::exists(dir.filePath("out/Club/IMG_1.jpg")));QImage output(dir.filePath("out/Club/IMG_1.jpg"));QCOMPARE(output.size(),QSize(1200,800));QVERIFY(near(output.pixelColor(1000,680),Qt::red,8));window.shutdown();
     }

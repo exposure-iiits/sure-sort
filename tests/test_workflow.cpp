@@ -43,7 +43,7 @@ bool sql(const QString& path,const std::function<bool(QSqlDatabase&)>& action){c
 class WorkflowTest:public QObject {
     Q_OBJECT
 private slots:
-    void headerMenusToggleBackToPhoto(){
+    void headerMenusAreModalWindows(){
         QTemporaryDir dir;
         MainWindow window(12*1024*1024,nullptr,dir.filePath("session.sqlite"));window.show();
         auto* viewer=window.findChild<PhotoViewer*>();
@@ -51,18 +51,16 @@ private slots:
         auto* shortcuts=window.findChild<QPushButton*>("allShortcuts");
         QVERIFY(viewer->isVisible());
         for(int i=0;i<2;++i){
-            settings->click();QVERIFY(window.findChild<SettingsDialog*>()->isVisible());QVERIFY(!viewer->isVisible());
-            settings->click();QVERIFY(viewer->isVisible());
-            // Switch menus before deferred destruction has run, as with rapid clicks.
-            shortcuts->click();QVERIFY(!viewer->isVisible());
-            QPointer<QDialog> reference=window.findChild<QDialog*>("shortcutReference");QVERIFY(reference&&reference->isVisible());
+            settings->click();QPointer<SettingsDialog> dialog=window.findChild<SettingsDialog*>();QVERIFY(dialog&&dialog->isVisible());QVERIFY(viewer->isVisible());
+            QVERIFY(dialog->isWindow());QCOMPARE(dialog->windowModality(),Qt::WindowModal);QTRY_COMPARE(QApplication::activeModalWidget(),dialog.data());
+            dialog->close();QTRY_VERIFY(dialog.isNull());
             shortcuts->click();QVERIFY(viewer->isVisible());
+            QPointer<QDialog> reference=window.findChild<QDialog*>("shortcutReference");QVERIFY(reference&&reference->isVisible());
+            QVERIFY(reference->isWindow());QCOMPARE(reference->windowModality(),Qt::WindowModal);QTRY_COMPARE(QApplication::activeModalWidget(),reference.data());
+            QTest::keyClick(reference,Qt::Key_Escape);QVERIFY(viewer->isVisible());
             QTRY_VERIFY(reference.isNull());
         }
-        settings->click();shortcuts->click();QVERIFY(!viewer->isVisible());
-        shortcuts->click();QVERIFY(viewer->isVisible());
-        shortcuts->click();settings->click();QVERIFY(!viewer->isVisible());
-        settings->click();QVERIFY(viewer->isVisible());window.shutdown();
+        window.shutdown();
     }
     void nextFolderShortcutSkipsUsedAndConflictingKeys(){
         QCOMPARE(Destination{}.action,QString("move"));
@@ -354,7 +352,7 @@ private slots:
 
         QTest::keyClick(viewer,Qt::Key_Comma,Qt::ControlModifier);
         QPointer<SettingsDialog> settings=window.findChild<SettingsDialog*>();QVERIFY(settings&&settings->isVisible());
-        auto* sidebar=settings->findChild<QListWidget*>("settingsSidebar");QVERIFY(sidebar);QCOMPARE(sidebar->count(),5);
+        auto* sidebar=settings->findChild<QListWidget*>("settingsSidebar");QVERIFY(sidebar);QCOMPARE(sidebar->count(),6);
         QCOMPARE(sidebar->currentRow(),int(SettingsDialog::Sorting));
         capture("settings-sorting",settings);
         auto* folders=settings->findChild<QTableWidget*>("destinationFolders");QVERIFY(folders);folders->item(0,0)->setText("Selected");
@@ -374,7 +372,7 @@ private slots:
         QVERIFY(settings->findChild<QSlider*>("editingStep")->isVisible());
         capture("settings-editing",settings);
         sidebar->setCurrentRow(SettingsDialog::About);
-        QVERIFY(settings->findChild<QLabel*>("aboutVersion")->text().contains("Version 0.1.2"));
+        QVERIFY(settings->findChild<QLabel*>("aboutVersion")->text().contains("Version 0.1.3"));
         capture("settings-about",settings);
         settings->findChild<QPushButton*>("closeSettings")->click();QTRY_VERIFY(settings.isNull()||!settings->isVisible());
 
@@ -408,16 +406,16 @@ private slots:
             }
             window.findChild<QPushButton*>("settingsButton")->click();
             QPointer<SettingsDialog> settings=window.findChild<SettingsDialog*>();QVERIFY(settings);
-            QVERIFY(!settings->isWindow());QCOMPARE(settings->window(),&window);
+            QVERIFY(settings->isWindow());QCOMPARE(settings->windowModality(),Qt::WindowModal);
             auto* sidebar=settings->findChild<QListWidget*>("settingsSidebar");
-            QCOMPARE(sidebar->count(),5);for(int i=0;i<sidebar->count();++i)QVERIFY(sidebar->item(i)->text()!="Shortcuts");
+            QCOMPARE(sidebar->count(),6);for(int i=0;i<sidebar->count();++i)QVERIFY(sidebar->item(i)->text()!="Shortcuts");
             sidebar->setCurrentRow(SettingsDialog::Editing);
             auto* step=settings->findChild<QSlider*>("editingStep");QCOMPARE(step->value(),5);step->setValue(7);
             QVERIFY(settings->findChild<QLabel*>("editingStepValue")->text().contains("0.7 EV"));
             settings->close();QTRY_VERIFY(settings.isNull());
             window.findChild<QPushButton*>("allShortcuts")->click();
             QPointer<QDialog> reference=window.findChild<QDialog*>("shortcutReference");QVERIFY(reference);
-            QVERIFY(!reference->isWindow());QCOMPARE(reference->window(),&window);QVERIFY(!window.findChild<QLabel*>("appLogo"));
+            QVERIFY(reference->isWindow());QCOMPARE(reference->windowModality(),Qt::WindowModal);QVERIFY(!window.findChild<QLabel*>("appLogo"));
             auto* table=reference->findChild<QTableWidget*>();QCOMPARE(table->columnCount(),3);
             QCOMPARE(table->rowCount(),5);QVERIFY(!reference->findChild<QWidget*>("shortcutEditor"));capture("shortcuts",reference);
             auto edit=[&](const QString& action,int slot=0){auto* tabs=reference->findChild<QTabBar*>("shortcutCategories");tabs->setCurrentIndex(action.startsWith("assign:")?2:action.startsWith("edit:")?3:action=="fit"?1:0);

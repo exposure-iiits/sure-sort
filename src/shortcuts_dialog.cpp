@@ -68,8 +68,10 @@ ShortcutsDialog::ShortcutsDialog(ShortcutManager* shortcuts, SortingController* 
     : QDialog(parent), shortcuts_(shortcuts), sorting_(sorting) {
     setObjectName("shortcutReference");
     setWindowTitle("Sure Sort · Keyboard shortcuts"); resize(820,610);
+    setWindowModality(Qt::WindowModal);
     auto* layout=new QVBoxLayout(this); layout->setContentsMargins(24,18,24,18);layout->setSpacing(12);
     auto* title=new QLabel("Keyboard shortcuts",this);title->setObjectName("settingsTitle");layout->addWidget(title);
+    auto* help=new QLabel("Double-click to edit a shortcut · Press your new keys · Delete clears · Esc cancels",this);help->setObjectName("shortcutEditHint");help->setWordWrap(true);help->setStyleSheet("color:#9c9ca8;font-size:12px;");layout->addWidget(help);
     categories_=new QTabBar(this);categories_->setObjectName("shortcutCategories");
     categories_->setDrawBase(false);
     for(const QString title:{"Navigation","Viewing","Sorting","Editing","Application"})categories_->addTab(title);

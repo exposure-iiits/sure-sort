@@ -11,6 +11,9 @@
 #include "settings_dialog.h"
 #include "ui_theme.h"
 #include "destination_counter.h"
+#include "destination_chip.h"
+#include "photo_popup.h"
+#include "filmstrip.h"
 #include <QComboBox>
 #include <QSignalBlocker>
 #include <QStyle>
@@ -34,6 +37,9 @@
 #include <QKeySequenceEdit>
 #include <QStackedWidget>
 #include <QKeyEvent>
+#include <QScrollBar>
+#include <QWheelEvent>
+#include <QGridLayout>
 
 namespace photocull {
 MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath) : QMainWindow(parent) {
@@ -44,7 +50,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     auto* central = new QWidget(this); setCentralWidget(central);
     auto* layout = new QVBoxLayout(central); layout->setContentsMargins(0,0,0,0); layout->setSpacing(0);
     auto* top = new QWidget(central);topBar_=top;top->setObjectName("toolbar"); top->setFixedHeight(42);
-    auto* topLayout = new QHBoxLayout(top); topLayout->setContentsMargins(14,4,10,4); topLayout->setSpacing(10);
+    auto* topLayout = new QHBoxLayout(top); topLayout->setContentsMargins(14,4,10,4); topLayout->setSpacing(6);
     auto* brand = new QLabel("Sure Sort", top); brand->setObjectName("AppTitle");
     auto* open = new QPushButton(uiIcon("folder"),"Open Folder", top);open->setObjectName("openFolder"); open->setToolTip("Open a local folder · Ctrl+O");
     auto* settings=new QPushButton(uiIcon("settings"),QString(),top);settings->setObjectName("settingsButton");settings->setToolTip("Settings");settings->setAccessibleName("Settings");
@@ -53,28 +59,45 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     auto* output=new QAction("Output settings…",this);output->setObjectName("outputSettings");addAction(output);
     auto* watermark=new QAction("Watermark…",this);watermark->setObjectName("watermarkSettings");addAction(watermark);
     auto* shortcutButton=new QPushButton(uiIcon("keyboard"),QString(),top);shortcutButton->setObjectName("allShortcuts");shortcutButton->setAccessibleName("All shortcuts");shortcutButton->setToolTip("All keyboard shortcuts");
-    connect(shortcutButton,&QPushButton::clicked,this,[this]{
-        if(shortcutsDialog_&&workspace_->currentWidget()==shortcutsDialog_){shortcutsDialog_->close();shortcutsDialog_=nullptr;}
-        else showShortcuts();
-    });
+    connect(shortcutButton,&QPushButton::clicked,this,&MainWindow::showShortcuts);
+    auto* information=new QPushButton(uiIcon("info"),QString(),top);information->setObjectName("photoInfoButton");information->setAccessibleName("Photo information");information->setToolTip("Photo information");information->setCheckable(true);information->setEnabled(false);
+    auto* histogram=new QPushButton(uiIcon("histogram"),QString(),top);histogram->setObjectName("histogramButton");histogram->setAccessibleName("Photo histogram");histogram->setToolTip("Photo histogram");histogram->setCheckable(true);histogram->setEnabled(false);
     auto* edit=new QPushButton("Edit",top);edit->setObjectName("toggleEdit");edit->setCheckable(true);
     folderLabel_ = new QLabel("No folder selected", top); folderLabel_->setObjectName("muted");
     folderLabel_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     outputLabel_=new QLabel("no output folder yet",top);outputLabel_->setObjectName("outputFolder");outputLabel_->setAlignment(Qt::AlignRight|Qt::AlignVCenter);outputLabel_->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred);
     auto* fullscreen = new QPushButton(uiIcon("fullscreen"),QString(), top);fullscreen->setObjectName("fullscreenButton");fullscreen->setAccessibleName("Full screen"); fullscreen->setToolTip("Toggle fullscreen · F11");
-    for(auto* button:{open,edit,shortcutButton,settings,fullscreen}){button->setProperty("toolbarButton",true);button->setFocusPolicy(Qt::NoFocus);button->setIconSize(QSize(18,18));}
-    topLayout->addWidget(brand); topLayout->addWidget(open);topLayout->addWidget(folderLabel_,1);topLayout->addWidget(outputLabel_,1);topLayout->addWidget(edit);topLayout->addWidget(shortcutButton);topLayout->addWidget(settings);topLayout->addWidget(fullscreen);
+    for(auto* button:{open,edit,information,histogram,shortcutButton,settings,fullscreen}){button->setProperty("toolbarButton",true);button->setFocusPolicy(Qt::NoFocus);button->setIconSize(QSize(18,18));}
+    topLayout->addWidget(brand); topLayout->addWidget(open);topLayout->addWidget(folderLabel_,1);topLayout->addWidget(outputLabel_,1);topLayout->addWidget(information);topLayout->addWidget(histogram);topLayout->addWidget(edit);topLayout->addWidget(shortcutButton);topLayout->addWidget(settings);topLayout->addWidget(fullscreen);
     layout->addWidget(top);
     workspace_=new QStackedWidget(central);workspace_->setObjectName("workspacePages");
     photoPage_=new QWidget(workspace_);workspace_->addWidget(photoPage_);layout->addWidget(workspace_,1);
-    auto* body=new QHBoxLayout(photoPage_);body->setContentsMargins(0,0,0,0);body->setSpacing(0);
+    auto* photoGrid=new QGridLayout(photoPage_);photoGrid->setContentsMargins(0,0,0,0);photoGrid->setSpacing(0);photoGrid->setRowStretch(1,1);photoGrid->setColumnStretch(1,1);
+    auto* photoBody=new QWidget(photoPage_);photoGrid->addWidget(photoBody,1,1);
+    auto* body=new QHBoxLayout(photoBody);body->setContentsMargins(0,0,0,0);body->setSpacing(0);
     viewer_ = new PhotoViewer(central);body->addWidget(viewer_,1);
+    photoTools_=new QScrollArea(viewer_);photoTools_->setObjectName("photoTools");photoTools_->setAttribute(Qt::WA_NoMousePropagation);photoTools_->setWidgetResizable(true);photoTools_->setFrameShape(QFrame::NoFrame);photoTools_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    photoTools_->setStyleSheet("QScrollArea#photoTools, QScrollArea#photoTools > QWidget > QWidget {background:transparent;border:0;} QScrollArea#photoTools QScrollBar:vertical {width:6px;background:transparent;}");photoTools_->viewport()->setAutoFillBackground(false);
+    auto* toolContent=new QWidget;auto* toolLayout=new QVBoxLayout(toolContent);toolLayout->setContentsMargins(0,0,0,0);toolLayout->setSpacing(12);toolLayout->setSizeConstraint(QLayout::SetMinimumSize);photoTools_->setWidget(toolContent);
+    informationTools_=new QScrollArea(viewer_);informationTools_->setObjectName("informationTools");informationTools_->setAttribute(Qt::WA_NoMousePropagation);informationTools_->setWidgetResizable(true);informationTools_->setFrameShape(QFrame::NoFrame);informationTools_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    informationTools_->setStyleSheet("QScrollArea#informationTools, QScrollArea#informationTools > QWidget > QWidget {background:transparent;border:0;} QScrollArea#informationTools QScrollBar:vertical {width:6px;background:transparent;}");informationTools_->viewport()->setAutoFillBackground(false);
+    auto* infoContent=new QWidget;auto* infoLayout=new QVBoxLayout(infoContent);infoLayout->setContentsMargins(0,0,0,0);infoLayout->setSpacing(0);infoLayout->setSizeConstraint(QLayout::SetMinimumSize);informationTools_->setWidget(infoContent);
+    photoPopup_=new PhotoPopup(infoContent);photoPopup_->setProperty("layoutManaged",true);infoLayout->addWidget(photoPopup_);infoLayout->addStretch();informationTools_->hide();
+    photoTools_->hide();
+    connect(information,&QPushButton::clicked,this,[this]{togglePhotoPopup(false);});
+    connect(histogram,&QPushButton::clicked,this,[this]{togglePhotoPopup(true);});
+    connect(photoPopup_,&PhotoPopup::dismissed,this,[information,histogram,this]{information->setChecked(false);histogram->setChecked(false);layoutPhotoTools();viewer_->setFocus();});
     viewer_->setMouseTracking(true);
     qApp->installEventFilter(this);
     connect(viewer_,&PhotoViewer::fullscreenRequested,this,&MainWindow::toggleFullscreen);
-    auto* editScroll=new QScrollArea(central);editScroll->setFixedWidth(254);editScroll->setWidgetResizable(true);editScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);editScroll->setFrameShape(QFrame::NoFrame);
-    editPanel_=new EditPanel(editScroll);editPanel_->setEnabled(false);editScroll->setWidget(editPanel_);editScroll->hide();body->addWidget(editScroll);
+    auto* editScroll=new QScrollArea(toolContent);editScroll_=editScroll;editScroll->setObjectName("editCard");editScroll->setFixedWidth(336);editScroll->setWidgetResizable(true);editScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);editScroll->setFrameShape(QFrame::NoFrame);
+    editScroll->setStyleSheet("QScrollArea#editCard {background:rgba(30,30,35,235);border:1px solid rgba(255,255,255,42);border-radius:12px;padding:4px;} QScrollArea#editCard > QWidget > QWidget {background:transparent;} QScrollArea#editCard QSlider {background:transparent;} QScrollArea#editCard QScrollBar:vertical {background:transparent;width:6px;}");
+    editScroll->viewport()->setAutoFillBackground(false);
+    editPanel_=new EditPanel(editScroll);editPanel_->setEnabled(false);editScroll->setWidget(editPanel_);editScroll->hide();
+    toolLayout->addWidget(editScroll);toolLayout->addStretch();
+    connect(viewer_,&PhotoViewer::targetChanged,this,&MainWindow::layoutPhotoTools);
     connect(edit,&QPushButton::toggled,editScroll,&QWidget::setVisible);
+    connect(edit,&QPushButton::toggled,this,&MainWindow::layoutPhotoTools);
     connect(editPanel_,&EditPanel::changed,this,&MainWindow::applyEdits);
     connect(editPanel_,&EditPanel::cropRequested,this,[this]{if(viewer_->isCropping())viewer_->cancelCrop();else viewer_->beginCrop();viewer_->setFocus();});
     connect(editPanel_,&EditPanel::cropAspectChanged,viewer_,&PhotoViewer::setCropAspect);
@@ -99,26 +122,30 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     connect(editPanel_,&EditPanel::cropAspectChanged,this,[ratio](double value){for(int i=0;i<ratio->count();++i)if(qAbs(ratio->itemData(i).toDouble()-value)<.00001){QSignalBlocker block(ratio);ratio->setCurrentIndex(i);break;}});
     connect(applyCrop,&QPushButton::clicked,viewer_,&PhotoViewer::confirmCrop);connect(cancelCrop,&QPushButton::clicked,viewer_,&PhotoViewer::cancelCrop);
 
-    auto* footer=new QWidget(central);footer->setObjectName("photoFooter");
+    filmstrip_=new Filmstrip(photoPage_);filmstrip_->setSourceResolver([this](const Photo& photo){return sorting_.resolvedPhoto(photo);});photoGrid->addWidget(filmstrip_,2,1);filmstrip_->hide();
+    filmstrip_->setCompletionResolver([this](const QString& id){for(const auto& task:sorting_.assignments(id))if(task.status=="completed")return true;return false;});
+    connect(filmstrip_,&Filmstrip::photoSelected,this,[this](int index){if(!viewer_->isCropping()){navigate(index);viewer_->setFocus();}});
+    auto* footer=new QWidget(central);footer_=footer;footer->setObjectName("photoFooter");
     auto* footerLayout=new QVBoxLayout(footer);footerLayout->setContentsMargins(10,3,10,4);footerLayout->setSpacing(2);
     auto* destinationRow=new QHBoxLayout;destinationRow->setSpacing(10);
     auto* scroll=new QScrollArea(footer);scroll->setObjectName("destinationScroll");scroll->setWidgetResizable(true);scroll->setFrameShape(QFrame::NoFrame);scroll->setMinimumWidth(0);
-    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);scroll->setFixedHeight(38);
+    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);scroll->setFixedHeight(44);scroll->viewport()->installEventFilter(this);
     auto* destinationBar=new QWidget(scroll);destinationBar->setObjectName("destinationBar");destinationsLayout_=new QHBoxLayout(destinationBar);
     destinationsLayout_->setContentsMargins(0,1,0,3);destinationsLayout_->setSpacing(7);scroll->setWidget(destinationBar);destinationRow->addWidget(scroll,1);
+    destinationsLayout_->setSizeConstraint(QLayout::SetMinimumSize);
     undoButton_=new QPushButton(uiIcon("undo"),"Undo",footer);undoButton_->setObjectName("undoAction");undoButton_->setToolTip("Undo last copy / move · Ctrl+Z");undoButton_->setFocusPolicy(Qt::NoFocus);destinationRow->addWidget(undoButton_);
     resetButton_=new QPushButton(uiIcon("reset"),"Reset edits",footer);resetButton_->setObjectName("resetPhotoEdits");resetButton_->setToolTip("Reset all adjustments, rotation and crop on this photo");resetButton_->setFocusPolicy(Qt::NoFocus);resetButton_->hide();destinationRow->addWidget(resetButton_);
     connect(resetButton_,&QPushButton::clicked,this,[this]{editingAction("edit:reset");viewer_->setFocus();});
     connect(undoButton_,&QPushButton::clicked,this,[this]{if(!viewer_->isCropping())sorting_.undo();viewer_->setFocus();});
     connect(viewer_,&PhotoViewer::cropModeChanged,this,[this](bool active){undoButton_->setEnabled(!active&&sorting_.canUndo());updateResetButton();});
     footerLayout->addLayout(destinationRow);
-    auto* status=new QHBoxLayout;status->setSpacing(14);
+    statusRow_=new QWidget(footer);statusRow_->setObjectName("photoStatusRow");auto* status=new QHBoxLayout(statusRow_);status->setContentsMargins(0,0,0,0);status->setSpacing(10);
     filenameLabel_=new QLabel("← → Browse   ·   F Fit   ·   Z 100%",footer);filenameLabel_->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred);status->addWidget(filenameLabel_,2);
     assignedLabel_=new QLabel(footer);assignedLabel_->setObjectName("assignmentStatus");assignedLabel_->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred);status->addWidget(assignedLabel_,1);
     queueButton_=new QPushButton("Ready",footer);queueButton_->setObjectName("processingStatus");queueButton_->setFlat(true);queueButton_->setFocusPolicy(Qt::NoFocus);status->addWidget(queueButton_);
     positionLabel_=new QLabel("0 / 0",footer);dimensionsLabel_=new QLabel(footer);typeLabel_=new QLabel(footer);zoomLabel_=new QLabel(footer);
     for(auto* label:{positionLabel_,dimensionsLabel_,typeLabel_,zoomLabel_}){label->setStyleSheet("color:#a1a1a9;font-size:12px;");status->addWidget(label);}
-    footerLayout->addLayout(status);
+    footerLayout->addWidget(statusRow_);
     errorLabel_=new QLabel(footer);errorLabel_->setObjectName("processingError");errorLabel_->setWordWrap(true);errorLabel_->setStyleSheet("color:#e0b58e;background:#322a25;border-radius:4px;padding:5px;font-size:11px;");errorLabel_->hide();footerLayout->addWidget(errorLabel_);
     layout->addWidget(footer);
     destinationCounter_=new DestinationCounter(this);
@@ -138,18 +165,16 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     connect(&sorting_,&SortingController::progressChanged,destinationCounter_,&DestinationCounter::refresh);
     connect(open, &QPushButton::clicked, this, &MainWindow::chooseFolder);
     connect(fullscreen, &QPushButton::clicked, this, &MainWindow::toggleFullscreen);
-    connect(settings,&QPushButton::clicked,this,[this]{
-        if(settingsDialog_&&workspace_->currentWidget()==settingsDialog_){settingsDialog_->close();settingsDialog_=nullptr;}
-        else openSettings();
-    });
+    connect(settings,&QPushButton::clicked,this,[this]{openSettings();});
     connect(destinations,&QAction::triggered,this,&MainWindow::configureDestinations);
     connect(watermark,&QAction::triggered,this,&MainWindow::configureWatermark);
     connect(output,&QAction::triggered,this,&MainWindow::configureOutput);
     connect(&sorting_,&SortingController::watermarkChanged,viewer_,&PhotoViewer::setWatermark);
-    connect(viewer_,&PhotoViewer::editsRendered,this,[this]{const auto size=viewer_->editedSourceSize();if(size.isValid())dimensionsLabel_->setText(QString("%1 × %2").arg(size.width()).arg(size.height()));});
+    connect(viewer_,&PhotoViewer::editsRendered,this,[this]{const auto size=viewer_->editedSourceSize();if(size.isValid())dimensionsLabel_->setText(QString("%1 × %2").arg(size.width()).arg(size.height()));if(photoPopup_->isVisible()&&photoPopup_->mode()==PhotoPopup::Histogram)photoPopup_->setHistogramImage(viewer_->histogramImage());});
     connect(&scanner_, &FolderScanner::finished, this, [this](quint64 epoch, Catalog photos, const QString& error) {
         if (epoch != folderEpoch_) return;
         controller_.setCatalog(sorting_.mergeMovedPhotos(std::move(photos),folder_));
+        filmstrip_->setCatalog(controller_.catalog());applyViewerPreferences();
         viewer_->setLoading(false);
         if (!error.isEmpty()) viewer_->setMessage(error);
         else if (controller_.catalog().isEmpty()) viewer_->setMessage("No JPEG, PNG or recognized RAW files in this folder or its subfolders.");
@@ -175,6 +200,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     connect(viewer_, &PhotoViewer::zoomChanged, this, [this](double percent) { zoomLabel_->setText(QString::number(percent,'f',0) + '%'); });
     resizeTimer_.setSingleShot(true); resizeTimer_.setInterval(120);
     connect(viewer_, &PhotoViewer::targetChanged, &resizeTimer_, qOverload<>(&QTimer::start));
+    connect(viewer_, &PhotoViewer::targetChanged,photoPopup_,&PhotoPopup::reposition);
     connect(&resizeTimer_, &QTimer::timeout, this, [this] {
         if (controller_.index() < 0) return;
         const bool zoomed = !viewer_->isFit();
@@ -211,10 +237,12 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     positionTimer_.setSingleShot(true); positionTimer_.setInterval(250);
     connect(&positionTimer_,&QTimer::timeout,this,[this]{sorting_.savePosition(folder_,controller_.index()>=0?controller_.catalog()[controller_.index()].id:QString());});
     connect(&sorting_,&SortingController::configChanged,this,&MainWindow::rebuildDestinations);
-    connect(&sorting_,&SortingController::assignmentChanged,this,[this](const QString&){updateStatus();});
+    connect(&sorting_,&SortingController::assignmentChanged,this,[this](const QString&){filmstrip_->refreshCompletion();updateStatus();});
     connect(&sorting_,&SortingController::progressChanged,this,[this]{if(sorting_.ready()&&sorting_.issues().isEmpty())lastProblem_.clear();updateQueue();});
     connect(&sorting_,&SortingController::sourcesChanged,this,[this](const QString& id){
+        filmstrip_->invalidate(id);
         const int index=controller_.index();if(index>=0&&controller_.catalog()[index].id==id&&!viewer_->hasPhoto())controller_.select(index,viewer_->displayTarget());
+        if(index>=0&&controller_.catalog()[index].id==id)updatePhotoPopup();
     });
     connect(&sorting_,&SortingController::advanceRequested,this,[this]{navigate(controller_.index()+1);});
     connect(&sorting_,&SortingController::focusRequested,this,[this](const Photo& photo){
@@ -227,13 +255,16 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     });
     if(databasePath.isEmpty()) databasePath=QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).filePath("session.sqlite");
     if(sorting_.initialize(databasePath)) {
+        applyViewerPreferences();
         restorePhoto_=sorting_.restoredPhoto();
         const auto restored=sorting_.restoredFolder();
         if(!restored.isEmpty())QTimer::singleShot(0,this,[this,restored]{if(folder_.isEmpty())openFolder(restored);});
     } else rebuildDestinations();
     updateQueue();
 }
+MainWindow::~MainWindow(){qApp->removeEventFilter(this);}
 void MainWindow::shutdown() {
+    photoPopup_->shutdown();filmstrip_->shutdown();
     destinationCounter_->shutdown();
     resizeTimer_.stop(); positionTimer_.stop();
     if(!folder_.isEmpty())sorting_.savePosition(folder_,controller_.index()>=0?controller_.catalog()[controller_.index()].id:QString());
@@ -246,6 +277,8 @@ void MainWindow::chooseFolder() {
 }
 void MainWindow::openFolder(const QString& folder) {
     ++folderEpoch_; controller_.clear(); resizeTimer_.stop(); folder_ = QDir(folder).absolutePath();
+    filmstrip_->setCatalog({});filmstrip_->hide();photoPopup_->hide();layoutPhotoTools();
+    findChild<QPushButton*>("photoInfoButton")->setChecked(false);findChild<QPushButton*>("histogramButton")->setChecked(false);
     viewer_->resetPhoto(); viewer_->setLoading(false); viewer_->setMessage("Scanning folder…");
     folderLabel_->setText(QDir(folder_).dirName()); folderLabel_->setToolTip(folder_);
     dimensionsLabel_->clear(); typeLabel_->clear(); zoomLabel_->clear(); updateStatus();
@@ -259,11 +292,14 @@ void MainWindow::navigate(int index) {
     viewer_->resetPhoto(); dimensionsLabel_->clear(); zoomLabel_->clear();
     const auto e=sorting_.edits(controller_.catalog()[index].id);viewer_->setEdits(e);editPanel_->setEdits(e);
     controller_.select(index, viewer_->displayTarget()); updateStatus();
+    filmstrip_->setCurrentIndex(index);updatePhotoPopup();
     positionTimer_.start();
 }
 void MainWindow::updateStatus(const DecodedImage* result) {
     const int index = controller_.index();
     editPanel_->setEnabled(index>=0&&sorting_.ready());
+    findChild<QPushButton*>("photoInfoButton")->setEnabled(index>=0);
+    findChild<QPushButton*>("histogramButton")->setEnabled(index>=0);
     updateResetButton();
     positionLabel_->setText(QString("%1 / %2").arg(index + 1).arg(controller_.catalog().size()));
     if (index >= 0) {
@@ -287,16 +323,26 @@ void MainWindow::updateStatus(const DecodedImage* result) {
 void MainWindow::toggleFullscreen() {
     auto* layout=qobject_cast<QVBoxLayout*>(centralWidget()->layout());
     if(isFullScreen()){
-        wasMaximized_?showMaximized():showNormal();layout->insertWidget(0,topBar_);
+        wasMaximized_?showMaximized():showNormal();layout->insertWidget(0,topBar_);viewer_->showToast({});
     }else{
         wasMaximized_=isMaximized();layout->removeWidget(topBar_);showFullScreen();
         viewer_->showToast("Double-click to leave fullscreen · Move to top for controls");
     }
     if(auto* button=findChild<QPushButton*>("fullscreenButton")){button->setIcon(uiIcon(isFullScreen()?"exitFullscreen":"fullscreen"));button->setAccessibleName(isFullScreen()?"Exit full screen":"Full screen");button->setToolTip(isFullScreen()?"Leave fullscreen · Double-click / F11 / Esc":"Full screen · F11");}
     topBar_->setVisible(!isFullScreen());
+    statusRow_->setVisible(!isFullScreen());applyViewerPreferences();
 }
 bool MainWindow::eventFilter(QObject* target,QEvent* event){
     auto* widget=qobject_cast<QWidget*>(target);
+    if(event->type()==QEvent::Wheel)if(auto* scroll=findChild<QScrollArea*>("destinationScroll");scroll&&target==scroll->viewport()&&scroll->horizontalScrollBar()->maximum()>0){
+        auto* wheel=static_cast<QWheelEvent*>(event);const auto pixel=wheel->pixelDelta(),angle=wheel->angleDelta();const int delta=!pixel.isNull()?(pixel.x()?pixel.x():pixel.y()):(angle.x()?angle.x():angle.y());scroll->horizontalScrollBar()->setValue(scroll->horizontalScrollBar()->value()-delta);return true;
+    }
+    if(photoPopup_->isVisible()&&event->type()==QEvent::KeyPress&&static_cast<QKeyEvent*>(event)->key()==Qt::Key_Escape&&!QApplication::activeModalWidget()){
+        photoPopup_->hide();layoutPhotoTools();findChild<QPushButton*>("photoInfoButton")->setChecked(false);findChild<QPushButton*>("histogramButton")->setChecked(false);viewer_->setFocus();return true;
+    }
+    if(photoPopup_->isVisible()&&event->type()==QEvent::MouseButtonPress&&widget&&widget->window()==this&&!photoTools_->isAncestorOf(widget)&&widget!=photoTools_&&!informationTools_->isAncestorOf(widget)&&widget!=informationTools_&&widget!=findChild<QPushButton*>("toggleEdit")&&widget!=findChild<QPushButton*>("photoInfoButton")&&widget!=findChild<QPushButton*>("histogramButton")){
+        photoPopup_->hide();layoutPhotoTools();findChild<QPushButton*>("photoInfoButton")->setChecked(false);findChild<QPushButton*>("histogramButton")->setChecked(false);
+    }
     if(destinationEditor_&&widget&&(widget==destinationEditor_||destinationEditor_->isAncestorOf(widget))&&event->type()==QEvent::KeyPress&&static_cast<QKeyEvent*>(event)->key()==Qt::Key_Escape){
         cancelDestinationEdit();return true;
     }
@@ -310,6 +356,8 @@ bool MainWindow::eventFilter(QObject* target,QEvent* event){
 void MainWindow::resizeEvent(QResizeEvent* event){
     QMainWindow::resizeEvent(event);
     if(isFullScreen())topBar_->setGeometry(0,0,centralWidget()->width(),42);
+    layoutPhotoTools();
+    typeLabel_->setVisible(width()>=780);dimensionsLabel_->setVisible(width()>=700);outputLabel_->setVisible(width()>=900);
 }
 void MainWindow::updateResetButton(){
     const int index=controller_.index();
@@ -329,16 +377,16 @@ void MainWindow::openSettings(int page){
     if(!sorting_.ready()){QMessageBox::warning(this,"Settings unavailable",lastProblem_);return;}
     if(!settingsDialog_){
         auto* dialog=new SettingsDialog(&sorting_,shortcuts_,this);settingsDialog_=dialog;dialog->setAttribute(Qt::WA_DeleteOnClose);
-        dialog->setWindowFlags(Qt::Widget);dialog->setMinimumSize(0,0);dialog->setProperty("suspendPhotoShortcuts",true);workspace_->addWidget(dialog);
-        connect(dialog,&QDialog::finished,this,[this,dialog]{if(workspace_->currentWidget()==dialog){workspace_->setCurrentWidget(photoPage_);viewer_->setFocus();}});
+        dialog->setWindowModality(Qt::WindowModal);dialog->setProperty("suspendPhotoShortcuts",true);
+        connect(dialog,&QDialog::finished,this,[this]{applyViewerPreferences();activateWindow();viewer_->setFocus();});
+        connect(dialog,&SettingsDialog::viewerPreferencesChanged,this,&MainWindow::applyViewerPreferences);
         connect(dialog,&SettingsDialog::editingRequested,this,[this]{if(auto* button=findChild<QPushButton*>("toggleEdit"))button->setChecked(true);viewer_->setFocus();});
     }
-    workspace_->setCurrentWidget(settingsDialog_);
     settingsDialog_->showPage(SettingsDialog::Page(page));
 }
 void MainWindow::rebuildDestinations() {
     destinationEditor_=nullptr;
-    if(auto* scroll=findChild<QScrollArea*>("destinationScroll"))scroll->setFixedHeight(38);
+    if(auto* scroll=findChild<QScrollArea*>("destinationScroll"))scroll->setFixedHeight(44);
     const auto output=sorting_.config().outputRoot;
     outputLabel_->setText(output.isEmpty()?"no output folder yet":"→ "+QDir::toNativeSeparators(output));outputLabel_->setToolTip(output);
     while(auto* item=destinationsLayout_->takeAt(0)){if(item->widget())item->widget()->deleteLater();delete item;}
@@ -348,10 +396,10 @@ void MainWindow::rebuildDestinations() {
     for(const auto& folder:sorting_.config().folders){
         bindings.append({folder.id,QKeySequence(folder.shortcut,QKeySequence::PortableText)});
         bindings.append({folder.id,QKeySequence(folder.alternateShortcut,QKeySequence::PortableText)});
-        auto* button=new QPushButton((folder.shortcut.isEmpty()?QString():folder.shortcut+"  ")+folder.name,this);
+        auto* button=new DestinationChip(folder.shortcut,folder.name,this);
         button->setProperty("destinationChip",true);button->setProperty("destinationId",folder.id);button->setFocusPolicy(Qt::NoFocus);
         button->setProperty("destinationAction",folder.action);
-        button->setToolTip((folder.action=="move"?"Move to ":"Copy to ")+QDir(sorting_.config().outputRoot).filePath(folder.name)); destinationsLayout_->addWidget(button);
+        button->setToolTip((folder.action=="move"?"Move to ":"Copy to ")+QDir(sorting_.config().outputRoot).filePath(folder.name)+(folder.alternateShortcut.isEmpty()?QString():"\nAlternate: "+folder.alternateShortcut)); destinationsLayout_->addWidget(button);
         auto* count=new QLabel("…",this);count->setObjectName("destinationPhotoCount");count->setProperty("destinationId",folder.id);count->setProperty("folderName",folder.name);
         count->setAlignment(Qt::AlignCenter);count->setFixedSize(22,22);count->setStyleSheet("background:#353840;color:#cbd0da;border:1px solid #4b505b;border-radius:11px;font-size:11px;");
         count->setToolTip("Counting photos…");destinationsLayout_->addWidget(count);destinationsLayout_->addSpacing(5);
@@ -383,6 +431,7 @@ void MainWindow::rebuildDestinations() {
         shortcuts_->setEditBindings(fallback,error);updateQueue();
     }
     if(!shortcuts_->setDestinations(bindings,error)){lastProblem_=error;updateQueue();}
+    editPanel_->setShortcutBindings(shortcuts_->editBindings());
     if(bindings.isEmpty())destinationsLayout_->addWidget(new QLabel("Add a sorting folder",this));
     auto* add=new QPushButton(uiIcon("plus"),QString(),this);add->setObjectName("quickAddDestination");add->setFixedSize(28,28);add->setFocusPolicy(Qt::NoFocus);add->setToolTip("Create sorting folder");add->setAccessibleName("Create sorting folder");add->setEnabled(sorting_.ready());destinationsLayout_->addWidget(add);
     connect(add,&QPushButton::clicked,this,[this]{editDestination();});
@@ -448,7 +497,7 @@ void MainWindow::editDestination(const QString& id){
     if(!id.isEmpty())for(int i=0;i<destinationsLayout_->count();++i)if(auto* chip=destinationsLayout_->itemAt(i)->widget())
         if(chip->property("destinationChip").toBool()&&chip->property("destinationId").toString()==id){position=i;chip->hide();break;}
     destinationsLayout_->insertWidget(qMax(0,position),editor);
-    editor->show();name->setFocus();name->selectAll();
+    editor->show();activateWindow();name->setFocus();name->selectAll();
     if(auto* scroll=findChild<QScrollArea*>("destinationScroll"))QTimer::singleShot(0,editor,[scroll,editor]{scroll->ensureWidgetVisible(editor);});
 }
 void MainWindow::cancelDestinationEdit(){
@@ -489,11 +538,42 @@ void MainWindow::editingAction(const QString& action){
 void MainWindow::showShortcuts(){
     if(!shortcutsDialog_){
         auto* dialog=new ShortcutsDialog(shortcuts_,&sorting_,this);shortcutsDialog_=dialog;
-        dialog->setWindowFlags(Qt::Widget);dialog->setProperty("suspendPhotoShortcuts",true);workspace_->addWidget(dialog);
+        dialog->setWindowModality(Qt::WindowModal);dialog->setProperty("suspendPhotoShortcuts",true);
         dialog->setAttribute(Qt::WA_DeleteOnClose);
-        connect(dialog,&QDialog::finished,this,[this,dialog]{if(workspace_->currentWidget()==dialog){workspace_->setCurrentWidget(photoPage_);viewer_->setFocus();}});
+        connect(dialog,&QDialog::finished,this,[this]{editPanel_->setShortcutBindings(shortcuts_->editBindings());activateWindow();viewer_->setFocus();});
     }
-    workspace_->setCurrentWidget(shortcutsDialog_);shortcutsDialog_->show();
+    shortcutsDialog_->show();shortcutsDialog_->raise();shortcutsDialog_->activateWindow();
+}
+void MainWindow::applyViewerPreferences(){
+    const auto preferences=sorting_.uiPreferences();const auto position=preferences.value("filmstripPosition").toString("left");
+    auto* grid=qobject_cast<QGridLayout*>(photoPage_->layout());
+    int row=2,column=1;if(position=="top")row=0;else if(position=="left"){row=1;column=0;}else if(position=="right"){row=1;column=2;}
+    if(filmstrip_->property("stripPosition").toString()!=position){grid->removeWidget(filmstrip_);filmstrip_->setVertical(column!=1);grid->addWidget(filmstrip_,row,column);filmstrip_->setProperty("stripPosition",position);}
+    filmstrip_->setVisible(preferences.value("showFilmstrip").toBool(true)&&!controller_.catalog().isEmpty());
+}
+void MainWindow::updatePhotoPopup(){
+    const int index=controller_.index();if(index<0)return;
+    photoPopup_->setPhoto(sorting_.resolvedPhoto(controller_.catalog()[index]));
+    if(photoPopup_->isVisible()&&photoPopup_->mode()==PhotoPopup::Histogram)photoPopup_->setHistogramImage(viewer_->histogramImage());
+}
+void MainWindow::togglePhotoPopup(bool histogram){
+    const auto mode=histogram?PhotoPopup::Histogram:PhotoPopup::Information;
+    const bool hide=photoPopup_->isVisible()&&photoPopup_->mode()==mode;
+    if(hide)photoPopup_->hide();
+    else {updatePhotoPopup();photoPopup_->setMode(mode);if(mode==PhotoPopup::Histogram)photoPopup_->setHistogramImage(viewer_->histogramImage());photoPopup_->show();photoPopup_->reposition();photoPopup_->setFocus();}
+    findChild<QPushButton*>("photoInfoButton")->setChecked(!hide&&!histogram);findChild<QPushButton*>("histogramButton")->setChecked(!hide&&histogram);
+    layoutPhotoTools();if(!hide)informationTools_->verticalScrollBar()->setValue(0);
+}
+void MainWindow::layoutPhotoTools(){
+    const bool info=!photoPopup_->isHidden(),editing=!editScroll_->isHidden();
+    const int cardWidth=info&&editing?qMin(336,qMax(180,(viewer_->width()-52)/2)):336;
+    photoPopup_->setProperty("cardWidth",cardWidth);editScroll_->setFixedWidth(cardWidth);
+    photoPopup_->reposition();
+    editScroll_->setFixedHeight(qMax(editPanel_->sizeHint().height(),editPanel_->minimumSizeHint().height())+12);
+    const int railWidth=cardWidth+8,height=qMax(100,viewer_->height()-24);
+    photoTools_->setGeometry(qMax(0,viewer_->width()-railWidth-12),12,railWidth,height);
+    informationTools_->setGeometry(12,12,railWidth,height);
+    photoTools_->setVisible(editing);informationTools_->setVisible(info);photoTools_->raise();informationTools_->raise();
 }
 void MainWindow::configureEditingShortcuts(){
     showShortcuts();

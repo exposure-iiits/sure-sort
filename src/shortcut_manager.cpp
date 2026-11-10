@@ -8,6 +8,7 @@
 #include <QComboBox>
 #include <QLineEdit>
 #include <QKeySequenceEdit>
+#include <QAbstractSpinBox>
 
 namespace photocull {
 ShortcutManager::ShortcutManager(QWidget* window) : QObject(window), window_(window) {
@@ -124,8 +125,10 @@ bool ShortcutManager::eventFilter(QObject* target, QEvent* event) {
     if (event->type() == QEvent::ApplicationDeactivate || (target == window_ && event->type() == QEvent::WindowDeactivate)) held_.clear();
     auto* widget = qobject_cast<QWidget*>(target);
     if (!widget || widget->window() != window_ || QApplication::activeModalWidget()) return false;
+    if(event->type()==QEvent::KeyPress&&static_cast<QKeyEvent*>(event)->key()==Qt::Key_Escape)
+        if(auto* popup=window_->findChild<QWidget*>("photoPopup");popup&&popup->isVisible())return false;
     for(auto* parent=widget;parent;parent=parent->parentWidget())
-        if(parent->property("suspendPhotoShortcuts").toBool()||qobject_cast<QLineEdit*>(parent)||qobject_cast<QKeySequenceEdit*>(parent)){
+        if(parent->property("suspendPhotoShortcuts").toBool()||qobject_cast<QLineEdit*>(parent)||qobject_cast<QKeySequenceEdit*>(parent)||qobject_cast<QAbstractSpinBox*>(parent)){
             held_.clear();return false;
         }
     if (event->type() == QEvent::KeyRelease) {

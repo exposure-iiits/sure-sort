@@ -1,6 +1,6 @@
 # Sure Sort — source and Windows app
 
-Current application version: **0.1.2**. 
+Current application version: **0.1.3**.
 
 ## Work from this project
 
@@ -25,7 +25,7 @@ If using Git, create an empty GitHub repository and run the following from the e
 ```powershell
 git init -b main
 git add .
-git commit -m "Import Sure Sort 0.1.2"
+git commit -m "Import Sure Sort 0.1.3"
 git remote add origin YOUR_GITHUB_REPOSITORY_URL
 git push -u origin main
 ```
@@ -34,6 +34,6 @@ If your repository already has commits, copy these source files into its existin
 
 ## Run or share the Windows app
 
-Extract `dist/Sure-Sort-0.1.2-Windows-x64-Portable.zip` and run `Sure Sort 0.1.2/Sure Sort.exe`. Keep all adjacent DLLs and plugin folders with the executable. No compiler or SDK is needed to run that package. If publishing a GitHub Release, attach the Windows ZIP as a release asset; keep the source repository separate from generated binaries.
+Extract `dist/Sure-Sort-0.1.3-Windows-x64-Portable.zip` and run `Sure Sort 0.1.3/Sure Sort.exe`. Keep all adjacent DLLs and plugin folders with the executable. No compiler or SDK is needed to run that package. If publishing a GitHub Release, attach the Windows ZIP as a release asset; keep the source repository separate from generated binaries.
 
 Future build packages can be created with [tools/deploy-windows.ps1](tools/deploy-windows.ps1). Version changes are made only when intended, in `project(PhotoCull VERSION ...)` in `CMakeLists.txt`; [versioning](docs/VERSIONING.md) describes how About and `--version` receive it.

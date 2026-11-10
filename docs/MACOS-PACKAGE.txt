@@ -1,0 +1,23 @@
+Sure Sort 0.1.2 - experimental macOS package
+
+Drag Sure Sort.app onto Applications to install.
+This package is ad-hoc signed, without an Apple Developer ID or notarization.
+macOS may block opening a downloaded copy. It is not a verified Mac release.
+
+Known limitations inherited from the Windows application:
+- Select Copy for every destination in Settings > Sorting before sorting.
+- Move requires Windows file locks and cannot complete on macOS.
+- Undo, clear and reassignment preserve generated files because verified
+  automatic removal currently requires Windows file locks.
+- Editing a sorted image may leave its previous output and save another file.
+
+The cloud build checks folder scanning, bundled startup and SQLite loading.
+Photo editing, RAW files, sorting and recovery require additional testing on a
+Mac. Test with disposable photo copies until a macOS port is validated.
+
+Apple Silicon and Intel require separate builds. The GitHub workflow currently
+builds Apple Silicon (M1/M2/M3/M4 or newer). It does not produce an Intel package.
+
+Settings and history use the user's application data directory; they are not
+stored in the app bundle. Delete the app from Applications to uninstall.
+Library versions and included license texts are in Contents/Resources/licenses.
