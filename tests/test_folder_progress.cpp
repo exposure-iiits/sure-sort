@@ -4,6 +4,12 @@
 #include "photo_viewer.h"
 #include "filmstrip.h"
 #include "copy_flight.h"
+#include "settings_dialog.h"
+#include <QCheckBox>
+#include <QMenu>
+#include <QAction>
+#include <QScrollArea>
+#include <QScrollBar>
 #include "raw_fixture.h"
 #include <QBuffer>
 #include <QDialog>
@@ -32,12 +38,22 @@ void capture(QWidget* widget,const QString& name){const auto root=qEnvironmentVa
 class FolderProgressTest:public QObject{
     Q_OBJECT
 private slots:
-    void fullSessionTravelsWithOriginalFolder(){
-        QTemporaryDir dir;const auto input=dir.filePath("input"),renamed=dir.filePath("renamed"),output=dir.filePath("out");QVERIFY(QDir().mkpath(input+"/nested"));const auto source=input+"/nested/photo.jpg";const auto bytes=photoBytes();QVERIFY(writeFile(source,bytes));auto photo=scanFolder(input).photos.first();PhotoEdits edits;edits.brightness=12;
-        {SortingController c;QVERIFY(c.initialize(dir.filePath("profile.sqlite")));QVERIFY(c.openFolderSession(input));QVERIFY(c.configure(destinations(output)));c.registerCatalog({photo});QVERIFY(c.setEdits(photo,edits));QVERIFY(c.setOutput({90,75,true}));c.assign(photo,"a");c.assign(photo,"b");QTRY_COMPARE(c.remaining(),0);QVERIFY(c.hasCompletedCopy(photo.id));c.savePosition(input,photo.id);QCOMPARE(readFile(source),bytes);c.shutdown();}
-        QVERIFY(QFileInfo::exists(progress(input)));QVERIFY(QDir().rename(input,renamed));photo=scanFolder(renamed).photos.first();
-        {SortingController c;QVERIFY(c.initialize(dir.filePath("fresh-computer.sqlite")));QVERIFY(c.openFolderSession(renamed));QCOMPARE(c.config().folders.size(),2);QCOMPARE(c.config().outputRoot,output);QCOMPARE(c.edits(photo.id),edits);QVERIFY(c.output()==OutputSettings({90,75,true}));QCOMPARE(c.restoredPhoto(),photo.id);QCOMPARE(c.assignments(photo.id).size(),2);QVERIFY(c.hasCompletedCopy(photo.id));c.removeAssignment(photo,"a");QTRY_COMPARE(c.assignments(photo.id).size(),1);QVERIFY(c.hasCompletedCopy(photo.id));c.removeAssignment(photo,"b");QTRY_COMPARE(c.assignments(photo.id).size(),0);QVERIFY(!c.hasCompletedCopy(photo.id));QCOMPARE(readFile(renamed+"/nested/photo.jpg"),bytes);c.undo();QTRY_VERIFY(c.hasCompletedCopy(photo.id));c.shutdown();}
-        {SessionStore store;QString error;store.setSourceRoot(renamed);QVERIFY(store.open(progress(renamed),error));SessionSnapshot snapshot;QVERIFY(store.load(snapshot,error));QVERIFY(!snapshot.undo.isEmpty());QCOMPARE(snapshot.tasks.first().photo.sources.first(),renamed+"/nested/photo.jpg");}
+    void outputMenuToastAndNoUndo(){
+        QTemporaryDir dir;const auto input=dir.filePath("input"),output=dir.filePath("out"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));QVERIFY(QDir().mkpath(output));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));
+        {SessionStore store;QString error;QVERIFY(store.open(profile,error));auto config=destinations(output);for(int i=0;i<30;++i)config.folders.append({QString("extra%1").arg(i),QString("Long folder name %1").arg(i),{}});QVERIFY(store.saveConfig(config,error));}
+        {MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();QTRY_VERIFY(viewer->hasPhoto());QVERIFY(!window.findChild<QPushButton*>("undoAction"));
+            auto* path=window.findChild<QPushButton*>("outputFolder");QVERIFY(path);QVERIFY(path->isVisible());QVERIFY(path->width()<=360);QVERIFY(path->height()<=28);
+            QTimer::singleShot(0,&window,[&]{auto* menu=window.findChild<QMenu*>("outputFolderMenu");QVERIFY(menu);QVERIFY(menu->findChild<QAction*>("openOutputInExplorer")->isEnabled());QVERIFY(menu->findChild<QAction*>("changeOutputFolder")->isEnabled());capture(menu,"output-menu-refined");menu->close();});path->click();
+            window.findChild<QPushButton*>("settingsButton")->click();auto* settings=window.findChild<SettingsDialog*>();QVERIFY(settings);settings->showPage(SettingsDialog::Viewing);auto* toast=settings->findChild<QCheckBox*>("showDestinationToast");QVERIFY(toast);QVERIFY(!toast->isChecked());toast->setChecked(true);capture(settings,"destination-toast-setting");settings->close();QCoreApplication::processEvents();window.activateWindow();viewer->setFocus();QTest::keyClick(viewer,Qt::Key_1);QTRY_VERIFY(viewer->toastText().contains("Keep"));QTRY_VERIFY(QFileInfo::exists(output+"/Keep/photo.jpg"));capture(&window,"destination-toast");
+            QTest::keyClick(viewer,Qt::Key_Z,Qt::ControlModifier);QTest::qWait(80);QVERIFY(QFileInfo::exists(output+"/Keep/photo.jpg"));
+            window.resize(640,480);auto* scroll=window.findChild<QScrollArea*>("destinationScroll");QTRY_VERIFY(scroll->horizontalScrollBar()->maximum()>0);scroll->horizontalScrollBar()->setValue(scroll->horizontalScrollBar()->maximum());QVERIFY(scroll->horizontalScrollBar()->value()>0);capture(&window,"full-footer-scroll");window.shutdown();}
+        {MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(input);QTRY_VERIFY(window.findChild<PhotoViewer*>()->hasPhoto());window.findChild<QPushButton*>("settingsButton")->click();auto* settings=window.findChild<SettingsDialog*>();settings->showPage(SettingsDialog::Viewing);QVERIFY(settings->findChild<QCheckBox*>("showDestinationToast")->isChecked());settings->close();window.shutdown();}
+    }
+    void completedCopiesPersistWithoutHistory(){
+        QTemporaryDir dir;const auto input=dir.filePath("input"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));const auto photo=scanFolder(input).photos.first();QString first;
+        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QVERIFY(c.configure(destinations(dir.filePath("out"))));QSignalSpy saved(&c,&SortingController::copyCompleted);c.assign(photo,"a");c.assign(photo,"b");QTRY_COMPARE(c.remaining(),0);QCOMPARE(saved.size(),2);first=c.assignment(photo.id,"a").outputPath;c.savePosition(input,photo.id);c.shutdown();}
+        const auto connection=newId();{auto db=QSqlDatabase::addDatabase("QSQLITE",connection);db.setDatabaseName(progress(input));QVERIFY(db.open());QSqlQuery q(db);QVERIFY(q.exec("CREATE TABLE undo_history(sequence INTEGER PRIMARY KEY,previous_task TEXT)"));QVERIFY(q.exec("PRAGMA user_version=1"));db.close();}QSqlDatabase::removeDatabase(connection);
+        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QCOMPARE(c.assignments(photo.id).size(),2);QCOMPARE(c.restoredPhoto(),photo.id);c.toggleAssignment(photo,"a");QTRY_COMPARE(c.assignments(photo.id).size(),1);QVERIFY(!QFileInfo::exists(first));QVERIFY(c.hasCompletedCopy(photo.id));QCOMPARE(readFile(input+"/photo.jpg"),photoBytes());c.shutdown();}
     }
     void independentFoldersShareOneWorker(){
         QTemporaryDir dir;const auto first=dir.filePath("one"),second=dir.filePath("two");QVERIFY(QDir().mkpath(first));QVERIFY(QDir().mkpath(second));QVERIFY(writeFile(first+"/a.jpg",photoBytes()));QVERIFY(writeFile(second+"/b.jpg",photoBytes()));const auto a=scanFolder(first).photos.first(),b=scanFolder(second).photos.first();std::atomic_int running{0},peak{0};
@@ -49,18 +65,8 @@ private slots:
         QVERIFY(QDir().rename(input,renamed));photo=scanFolder(renamed,{}, {renamed+"/Sorted"}).photos.first();
         {SortingController c;QVERIFY(c.initialize(dir.filePath("fresh.sqlite")));QVERIFY(c.openFolderSession(renamed));QCOMPARE(c.config().outputRoot,renamed+"/Sorted");QCOMPARE(c.assignment(photo.id).outputPath,renamed+"/Sorted/Keep/photo.jpg");QVERIFY(c.hasCompletedCopy(photo.id));c.removeAssignment(photo,"a");QTRY_VERIFY(c.assignments(photo.id).isEmpty());QVERIFY(!QFileInfo::exists(renamed+"/Sorted/Keep/photo.jpg"));QCOMPARE(readFile(renamed+"/photo.jpg"),photoBytes());}
     }
-    void removeDuringRefreshAndUndo(){
-        QTemporaryDir dir;QVERIFY(writeFile(dir.filePath("photo.jpg"),photoBytes()));Photo photo{"photo",{dir.filePath("photo.jpg")}};std::atomic_bool entered{false},release{false};std::atomic_int calls{0};
-        SortingController c(nullptr,[&](ProcessingTask task,const CancelToken& cancel){if(++calls==2){entered=true;while(!release&&!cancel->load())QThread::msleep(2);}return ProcessingPipeline::prepare(task,cancel);},10);QVERIFY(c.initialize(dir.filePath("db.sqlite")));QVERIFY(c.configure(destinations(dir.filePath("out"))));c.assign(photo,"a");QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));PhotoEdits edits;edits.brightness=15;c.setEdits(photo,edits);QTRY_VERIFY(entered.load());c.removeAssignment(photo,"a");release=true;QTRY_COMPARE(c.assignments(photo.id).size(),0);QTRY_COMPARE(c.remaining(),0);QVERIFY(!QFileInfo::exists(dir.filePath("out/Keep/photo.jpg")));QVERIFY(!c.hasCompletedCopy(photo.id));c.undo();QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));QVERIFY(c.hasCompletedCopy(photo.id));QCOMPARE(readFile(photo.sources.first()),photoBytes());
-    }
     void modifiedOutputIsPreservedAndStillMarked(){
         QTemporaryDir dir;const auto source=dir.filePath("photo.jpg");QVERIFY(writeFile(source,photoBytes()));Photo photo{"photo",{source}};SortingController c(nullptr,ProcessingPipeline::prepare,10);QVERIFY(c.initialize(dir.filePath("db.sqlite")));QVERIFY(c.configure(destinations(dir.filePath("out"))));c.assign(photo,"a");QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));const auto output=c.assignment(photo.id).outputPath;QVERIFY(writeFile(output,"user changed this copy"));c.removeAssignment(photo,"a");QTRY_COMPARE(c.assignment(photo.id).status,QString("preserved"));QTRY_COMPARE(c.assignment(photo.id).retryOperation,0);QVERIFY(c.hasCompletedCopy(photo.id));QCOMPARE(c.assignments(photo.id).size(),1);QCOMPARE(readFile(output),QByteArray("user changed this copy"));QCOMPARE(readFile(source),photoBytes());QVERIFY(!c.issues().isEmpty());
-    }
-    void removalRecoversAfterRestart(){
-        QTemporaryDir dir;const auto input=dir.filePath("in"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));const auto photo=scanFolder(input).photos.first();ProcessingTask saved;
-        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QVERIFY(c.configure(destinations(dir.filePath("out"))));c.assign(photo,"a");QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));saved=c.assignment(photo.id);c.shutdown();}
-        {SessionStore store;QString error;store.setSourceRoot(input);QVERIFY(store.open(progress(input),error));saved.removalRequested=true;saved.status="removing";QVERIFY(store.saveTask(saved,error));}
-        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QTRY_VERIFY(c.assignments(photo.id).isEmpty());QVERIFY(!QFileInfo::exists(saved.outputPath));c.undo();QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));QCOMPARE(readFile(input+"/photo.jpg"),photoBytes());}
     }
     void queuedCopyRecoversAndMissingOutputLosesGreen(){
         QTemporaryDir dir;const auto input=dir.filePath("in"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));const auto photo=scanFolder(input).photos.first();
@@ -90,11 +96,6 @@ private slots:
     void lockedProgressCannotSortThroughProfile(){
         QTemporaryDir dir;QVERIFY(writeFile(dir.filePath("photo.jpg"),photoBytes()));const auto input=dir.path();SortingController first;QVERIFY(first.initialize(dir.filePath("one.sqlite")));QVERIFY(first.openFolderSession(input));SortingController second;QVERIFY(second.initialize(dir.filePath("two.sqlite")));QVERIFY(!second.openFolderSession(input));QVERIFY(!second.ready());QVERIFY(second.assign(scanFolder(input).photos.first(),"a").isEmpty());
     }
-    void folderRenameUpdatesCopiesAndUndo(){
-        QTemporaryDir dir;const auto input=dir.filePath("in"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));const auto photo=scanFolder(input).photos.first();
-        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QVERIFY(c.configure(destinations(input+"/Sorted")));c.assign(photo,"a");QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));QString error;QVERIFY(c.renameDestination("a","Renamed",error));QCOMPARE(c.assignment(photo.id).categoryName,QString("Renamed"));QCOMPARE(c.assignment(photo.id).outputPath,input+"/Sorted/Renamed/photo.jpg");QVERIFY(QFileInfo::exists(c.assignment(photo.id).outputPath));c.shutdown();}
-        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QCOMPARE(c.config().folders.first().name,QString("Renamed"));c.undo();QTRY_VERIFY(!QFileInfo::exists(input+"/Sorted/Renamed/photo.jpg"));QCOMPARE(readFile(input+"/photo.jpg"),photoBytes());}
-    }
     void divergentFallbackPreservesBothSessions(){
 #ifdef Q_OS_WIN
         QTemporaryDir dir;const auto input=dir.filePath("in"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));const auto photo=scanFolder(input).photos.first();
@@ -116,19 +117,6 @@ private slots:
 #else
         QSKIP("Windows handle locking fixture");
 #endif
-    }
-    void footerFolderTogglesAndPersistentPanels(){
-        QTemporaryDir dir;const auto input=dir.filePath("in"),other=dir.filePath("other"),output=dir.filePath("out"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));QVERIFY(QDir().mkpath(other));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));QVERIFY(writeFile(other+"/other.jpg",photoBytes()));
-        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QVERIFY(c.configure(destinations(output)));const auto photo=scanFolder(input).photos.first();c.assign(photo,"a");c.assign(photo,"b");QTRY_COMPARE(c.remaining(),0);c.shutdown();}
-        MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();QTRY_VERIFY(viewer->hasPhoto());
-        auto chip=[&](const QString& id)->QPushButton*{for(auto* button:window.findChildren<QPushButton*>())if(button->property("destinationChip").toBool()&&button->property("destinationId")==id)return button;return nullptr;};
-        QVERIFY(chip("a"));QTRY_VERIFY(chip("a")->property("assigned").toBool());QVERIFY(chip("b")->property("assigned").toBool());QVERIFY(!window.findChild<QPushButton*>("manageCopies"));capture(&window,"footer-toggles-1280");
-        window.findChild<QPushButton*>("photoInfoButton")->click();auto* popup=window.findChild<PhotoPopup*>();QVERIFY(popup->isVisible());QTest::mouseClick(viewer,Qt::LeftButton,Qt::NoModifier,viewer->rect().center());QVERIFY(popup->isVisible());QTest::keyClick(viewer,Qt::Key_Escape);QVERIFY(popup->isVisible());window.openFolder(other);QTRY_VERIFY(viewer->hasPhoto());QVERIFY(popup->isVisible());window.openFolder(input);QTRY_VERIFY(viewer->hasPhoto());window.findChild<QPushButton*>("histogramButton")->click();QCOMPARE(popup->mode(),PhotoPopup::Histogram);QVERIFY(popup->isVisible());window.findChild<QPushButton*>("histogramButton")->click();QVERIFY(!popup->isVisible());
-        window.resize(640,480);capture(&window,"footer-toggles-640");window.activateWindow();viewer->setFocus();QTest::keyClick(viewer,Qt::Key_1);
-        QTRY_VERIFY(!chip("a")->property("assigned").toBool());QVERIFY(chip("b")->property("assigned").toBool());QVERIFY(QFileInfo::exists(output+"/Best/photo.jpg"));QVERIFY(!QFileInfo::exists(output+"/Keep/photo.jpg"));QVERIFY(!window.findChild<CopyFlight*>("copyFlight"));
-        chip("b")->click();QTRY_VERIFY(!chip("b")->property("assigned").toBool());QVERIFY(!QFileInfo::exists(output+"/Best/photo.jpg"));QCOMPARE(readFile(input+"/photo.jpg"),photoBytes());
-        window.findChild<QPushButton*>("undoAction")->click();QTRY_VERIFY(chip("b")->property("assigned").toBool());QVERIFY(QFileInfo::exists(output+"/Best/photo.jpg"));
-        chip("a")->click();QVERIFY(window.findChild<CopyFlight*>("copyFlight"));chip("a")->click();QVERIFY(!window.findChild<CopyFlight*>("copyFlight"));QTRY_VERIFY(!QFileInfo::exists(output+"/Keep/photo.jpg"));QVERIFY(chip("b")->property("assigned").toBool());window.shutdown();
     }
     void copyFlightUsesPreviousPhotoAndAllowsNavigation(){
         QTemporaryDir dir;const auto input=dir.filePath("in"),output=dir.filePath("out"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));for(int i=0;i<3;++i)QVERIFY(writeFile(input+QString("/photo_%1.jpg").arg(i),photoBytes()));const auto photos=scanFolder(input).photos;

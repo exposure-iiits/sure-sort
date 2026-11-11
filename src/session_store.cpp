@@ -40,7 +40,7 @@ bool SessionStore::open(const QString& path, QString& error) {
     { QSqlQuery version(db_); if(!version.exec("PRAGMA application_id") || !version.next()) {error="Cannot read progress format.";return false;}
       const int format=version.value(0).toInt();QSqlQuery tables(db_);tables.exec("SELECT name FROM sqlite_master WHERE type='table'");
       if((format!=1397970004 && tables.next()) || (format!=0 && format!=1397970004)) {error="Unsupported session format. Use a new copy-only session file.";return false;}
-      version.exec("PRAGMA user_version");if(!version.next()||version.value(0).toInt()>1){error="Progress requires a newer Sure Sort version.";return false;}}
+      version.exec("PRAGMA user_version");if(!version.next()||version.value(0).toInt()>2){error="Progress requires a newer Sure Sort version.";return false;}}
     const QStringList schema = {
         "PRAGMA journal_mode=DELETE", "PRAGMA synchronous=FULL", "PRAGMA foreign_keys=ON",
         "CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY,value TEXT NOT NULL)",
@@ -48,10 +48,10 @@ bool SessionStore::open(const QString& path, QString& error) {
         "CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY,sources TEXT NOT NULL)",
         "CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY,photo_id TEXT NOT NULL,sources TEXT NOT NULL,category_id TEXT NOT NULL,category_name TEXT NOT NULL,directory TEXT NOT NULL,status TEXT NOT NULL,temp_path TEXT NOT NULL,output_path TEXT NOT NULL,digest BLOB NOT NULL,identity BLOB NOT NULL,error TEXT NOT NULL,watermark_settings TEXT NOT NULL,watermark_asset TEXT NOT NULL,edits TEXT NOT NULL,predecessor_path TEXT NOT NULL,predecessor_digest BLOB NOT NULL,predecessor_identity BLOB NOT NULL,output_settings TEXT NOT NULL,automatic_retries INTEGER NOT NULL DEFAULT 0,retry_operation INTEGER NOT NULL DEFAULT 0,removal_requested INTEGER NOT NULL DEFAULT 0)",
         "CREATE TABLE IF NOT EXISTS assignments (photo_id TEXT NOT NULL,category_id TEXT NOT NULL,task_id TEXT NOT NULL REFERENCES tasks(id),PRIMARY KEY(photo_id,category_id))",
-        "CREATE TABLE IF NOT EXISTS undo_history (sequence INTEGER PRIMARY KEY AUTOINCREMENT,photo_id TEXT NOT NULL,sources TEXT NOT NULL,previous_task TEXT NOT NULL,category_id TEXT NOT NULL)",
+        "DROP TABLE IF EXISTS undo_history",
         "CREATE TABLE IF NOT EXISTS watermark_assets (id TEXT PRIMARY KEY,png BLOB NOT NULL,name TEXT NOT NULL)",
         "CREATE TABLE IF NOT EXISTS photo_edits (photo_id TEXT PRIMARY KEY,parameters TEXT NOT NULL)",
-        "PRAGMA application_id=1397970004", "PRAGMA user_version=1"
+        "PRAGMA application_id=1397970004", "PRAGMA user_version=2"
     };
     for (const auto& sql : schema) if (!exec(sql, {}, error)) return false;
     return finishDestinationRename(error);
@@ -80,7 +80,7 @@ bool SessionStore::renameDestination(const QString& id,const QString& name,QStri
     if(!QDir().mkpath(from)){error="Cannot access the sorting folder.";return false;}
     const auto journal=QString::fromUtf8(QJsonDocument(QJsonObject{{"id",id},{"name",name},{"from",from},{"to",to}}).toJson(QJsonDocument::Compact));
     // Persist intent before touching the directory. Startup reconciles a crash
-    // on either side of the rename before loading any processing/Undo snapshots.
+    // on either side of the rename before loading any processing snapshots.
     if(!exec("INSERT OR REPLACE INTO metadata VALUES('pending_destination_rename',?)",{journal},error))return false;
     return finishDestinationRename(error);
 }
@@ -182,8 +182,6 @@ bool SessionStore::load(SessionSnapshot& snapshot, QString& error) {
     }
     if (!q.exec("SELECT photo_id,task_id,category_id FROM assignments")) { error = q.lastError().text(); return false; }
     while (q.next()) snapshot.assignments.insert(assignmentKey(currentId(q.value(0).toString()),q.value(2).toString()),q.value(1).toString());
-    if (!q.exec("SELECT photo_id,sources,previous_task,category_id FROM undo_history ORDER BY sequence")) { error = q.lastError().text(); return false; }
-    while (q.next()) snapshot.undo.append({{currentId(q.value(0).toString()),decodePhotoSources(q.value(1).toString())},q.value(2).toString(),q.value(3).toString()});
     QString assetError;hydrateWatermark(snapshot.watermark,assetError); // Missing logos remain fixable in the settings UI.
     return true;
 }
@@ -257,18 +255,15 @@ bool SessionStore::saveTask(const ProcessingTask& task, QString& error) {
     if(!db_.commit()){error=db_.lastError().text();db_.rollback();return false;}return true;
 }
 bool SessionStore::changeAssignment(const Photo& photo, const QString& taskId, const ProcessingTask* created,
-                                  const QString& retiredId, bool pushUndo, const QString& previousId,
-                                  bool popUndo, QString& error,const QString& categoryId) {
+                                  const QString& retiredId, QString& error,const QString& categoryId) {
     if (!db_.transaction()) { error = db_.lastError().text(); return false; }
     bool ok = true;
     const auto category=!categoryId.isEmpty()?categoryId:created?created->categoryId:QString();
-    if (pushUndo) ok = savePhoto(photo,error)&&exec("INSERT INTO undo_history(photo_id,sources,previous_task,category_id) VALUES(?,?,?,?)", {storedId(photo.id),encodePhotoSources(photo.sources),nonNull(previousId),nonNull(category)},error);
     if (ok && !retiredId.isEmpty()) ok = exec("UPDATE tasks SET status=?,automatic_retries=0,retry_operation=0,removal_requested=0 WHERE id=?",{created&&!created->predecessorPath.isEmpty()?"superseded":"retired",retiredId},error);
     if (ok && created) ok = putTask(*created,error);
     if(ok&&!retiredId.isEmpty())ok=exec("DELETE FROM assignments WHERE task_id=?",{retiredId},error);
     if(ok&&taskId.isEmpty())ok=exec("DELETE FROM assignments WHERE photo_id=? AND category_id=?",{storedId(photo.id),category},error);
     else if(ok)ok=exec("INSERT OR REPLACE INTO assignments(photo_id,category_id,task_id) VALUES(?,?,?)",{storedId(photo.id),created?created->categoryId:category,taskId},error);
-    if (ok && popUndo) ok = exec("DELETE FROM undo_history WHERE sequence=(SELECT MAX(sequence) FROM undo_history)",{},error);
     if (!ok) { db_.rollback(); return false; }
     if (!db_.commit()) { error = db_.lastError().text(); db_.rollback(); return false; }
     return true;

@@ -193,25 +193,6 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(controller.remaining(),0,15000);QVERIFY(heartbeats>10);QCOMPARE(controller.failed(),0);
         QCOMPARE(QDir(dir.filePath("out/Club")).entryList({"*.jpg"},QDir::Files).size(),40);
     }
-    void capturedVersionsAndImmediateAdvance(){
-        QTemporaryDir dir;const auto source=dir.filePath("photo.png");QVERIFY(write(source,encoded(solid({600,400}))));
-        std::atomic_bool release{false};std::atomic_int entered{0};
-        SortingController controller(nullptr,[&](ProcessingTask t,const CancelToken& cancel){++entered;while(!release.load()&&!cancel->load())QThread::msleep(2);return ProcessingPipeline::prepare(t,cancel);});
-        QVERIFY(controller.initialize(dir.filePath("session.sqlite")));QVERIFY(controller.configure(config(dir.filePath("out"))));
-        auto red=logo();QVERIFY(controller.setWatermark(red));QSignalSpy advance(&controller,&SortingController::advanceRequested);
-        QVERIFY(!controller.assign({"red",{source}},"club").isEmpty());QCOMPARE(advance.size(),1);
-        auto blue=logo(Qt::blue);blue.settings.position=WatermarkPosition::TopLeft;QVERIFY(controller.setWatermark(blue));QVERIFY(!controller.assign({"blue",{source}},"club").isEmpty());
-        blue.settings.enabled=false;QVERIFY(controller.setWatermark(blue));QVERIFY(!controller.assign({"copy",{source}},"club").isEmpty());QCOMPARE(advance.size(),3);
-        QTRY_COMPARE(entered.load(),1);QCOMPARE(controller.assignment("red").watermark.assetId,red.assetId);QCOMPARE(controller.assignment("blue").watermark.assetId,blue.assetId);
-        release=true;QTRY_COMPARE_WITH_TIMEOUT(controller.remaining(),0,8000);
-        QCOMPARE(controller.assignment("red").status,"completed");QCOMPARE(controller.assignment("blue").status,"completed");
-        QImage redImage(controller.assignment("red").outputPath),blueImage(controller.assignment("blue").outputPath);
-        QCOMPARE(redImage.pixelColor(480,320),QColor(Qt::red));QCOMPARE(blueImage.pixelColor(80,80),QColor(Qt::blue));QCOMPARE(read(controller.assignment("copy").outputPath),read(source));
-        // Same destination but new settings creates a new output job; undo restores the previous snapshot.
-        const auto old=controller.assignment("red").id;QVERIFY(controller.assign({"red",{source}},"club")!=old);QTRY_COMPARE(controller.assignment("red").status,QString("completed"));
-        controller.undo();QTRY_COMPARE(controller.assignment("red").status,QString("completed"));QCOMPARE(controller.assignment("red").watermark.assetId,red.assetId);
-        QCOMPARE(QImage(controller.assignment("red").outputPath).pixelColor(480,320),QColor(Qt::red));
-    }
     void batchSharesLogoAndSavesOnce(){
         QTemporaryDir dir;const auto source=dir.filePath("photo.jpg");QVERIFY(write(source,encoded(solid({30,20}),"JPEG")));std::atomic_int entered{0};
         SortingController controller(nullptr,[&](ProcessingTask t,const CancelToken& cancel){++entered;while(!cancel->load())QThread::msleep(2);t.status="cancelled";return t;});
@@ -226,7 +207,7 @@ private slots:
         QTemporaryDir dir;const auto source=dir.filePath("photo.png");QVERIFY(write(source,encoded(solid({600,400}))));const auto database=dir.filePath("session.sqlite");
         auto old=logo(),current=logo(Qt::blue);current.settings.opacityPercent=70;current.settings.position=WatermarkPosition::TopLeft;
         auto queued=task(source,dir.filePath("out/Club"),old);QString error;
-        {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.saveWatermark(current,error));QVERIFY(store.changeAssignment(queued.photo,queued.id,&queued,{},true,{},false,error));}
+        {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.saveWatermark(current,error));QVERIFY(store.changeAssignment(queued.photo,queued.id,&queued,{},error));}
         old.asset.reset(); // Recovery must use the PNG stored in SQLite, with no source PNG file.
         {SortingController controller;QVERIFY(controller.initialize(database));QVERIFY(controller.watermark()==current);QVERIFY(controller.watermark().asset);QTRY_COMPARE(controller.assignment(queued.photo.id).status,QString("completed"));
          QCOMPARE(QImage(controller.assignment(queued.photo.id).outputPath).pixelColor(480,320),QColor(Qt::red));
@@ -235,7 +216,7 @@ private slots:
     }
     void damagedAssetFailsWithoutPublishing(){
         QTemporaryDir dir;const auto database=dir.filePath("session.sqlite"),source=dir.filePath("photo.jpg");QVERIFY(write(source,encoded(solid({600,400}),"JPEG")));auto wm=logo();auto queued=task(source,dir.filePath("out/Club"),wm);QString error;
-        {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.saveWatermark(wm,error));QVERIFY(store.changeAssignment(queued.photo,queued.id,&queued,{},true,{},false,error));}
+        {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.saveWatermark(wm,error));QVERIFY(store.changeAssignment(queued.photo,queued.id,&queued,{},error));}
         QVERIFY(execute(database,[](QSqlDatabase& db){QSqlQuery q(db);return q.exec("UPDATE watermark_assets SET png=X'00'");}));
         SortingController controller;QVERIFY(controller.initialize(database));QVERIFY(controller.watermark().settings.enabled);QVERIFY(!controller.watermark().asset);QVERIFY(controller.assign({"new",{source}},"club").isEmpty());
         QTRY_COMPARE(controller.assignment(queued.photo.id).status,QString("failed"));QVERIFY(!QFileInfo::exists(dir.filePath("out/Club/photo.jpg")));

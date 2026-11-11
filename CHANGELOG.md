@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.5 — 11 November 2026
+
+- Refined the output path into a compact, elided header control with a chevron and a menu matching the charcoal theme. Version remains 0.1.5.
+
+- Click the output path to open Explorer or change the output folder.
+- Removed sorting Undo, its button/shortcut and persistent history; existing copy progress stays available.
+- Added a saved destination toast option under Viewing, shown only after successful copying.
+- Verified crowded footers continue scrolling horizontally.
+
+
 ## 0.1.4 — 11 November 2026
 
 - Footer folders now toggle copies with matching primary/alternate shortcuts and clicks. Green outlines identify the current photo’s destinations; removals keep the current photo selected.

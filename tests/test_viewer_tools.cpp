@@ -35,25 +35,6 @@ QString field(const PhotoInformation& fields,const QString& name){for(const auto
 class ViewerToolsTest:public QObject {
     Q_OBJECT
 private slots:
-    void completedThumbnailsTrackCopyUndoAndRestart(){
-        QTemporaryDir dir;const auto input=dir.filePath("input"),output=dir.filePath("out"),database=dir.filePath("session.sqlite");QVERIFY(QDir().mkpath(input));
-        const auto source=input+"/photo_01.jpg";QVERIFY(image().save(source));QVERIFY(image().save(input+"/photo_02.jpg"));
-        QString error;{SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig({output,{{"a","A","1"},{"b","B","2"},{"m","Third","3"}}},error));}
-        auto green=[](Filmstrip* strip){const auto pixels=strip->viewport()->grab().toImage();const auto ratio=pixels.devicePixelRatio();const auto color=pixels.pixelColor(qRound(48*ratio),qRound(8*ratio));return color.green()>color.red()+25&&color.green()>color.blue()+12;};
-        {
-            MainWindow window(12*1024*1024,nullptr,database);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();auto* strip=window.findChild<Filmstrip*>();QTRY_VERIFY(viewer->hasPhoto());QVERIFY(!green(strip));
-            auto assign=[&](const QString& id){for(auto* button:window.findChildren<QPushButton*>())if(button->property("destinationChip").toBool()&&button->property("destinationId").toString()==id){button->click();return;}QFAIL("Missing destination");};
-            assign("a");QVERIFY(!green(strip));QTRY_VERIFY(QFileInfo::exists(output+"/A/photo_01.jpg"));QTRY_VERIFY(green(strip));
-            // Keep the completed photo selected too: the green border remains visible beside selection styling.
-            QTest::mouseClick(strip->viewport(),Qt::LeftButton,Qt::NoModifier,QPoint(40,40));QCOMPARE(strip->currentIndex(),0);QVERIFY(green(strip));assign("b");QTRY_VERIFY(QFileInfo::exists(output+"/B/photo_01.jpg"));QTRY_VERIFY(green(strip));
-            window.findChild<QPushButton*>("undoAction")->click();QTRY_VERIFY(!QFileInfo::exists(output+"/B/photo_01.jpg"));QVERIFY(green(strip));capture("completed-thumbnails",&window);window.shutdown();
-        }
-        {
-            MainWindow window(12*1024*1024,nullptr,database);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();auto* strip=window.findChild<Filmstrip*>();QTRY_VERIFY(viewer->hasPhoto());QTRY_VERIFY(green(strip));
-            window.activateWindow();viewer->setFocus();QTest::keyClick(viewer,Qt::Key_Backspace);QTRY_VERIFY(!QFileInfo::exists(output+"/A/photo_01.jpg"));QTRY_VERIFY(!green(strip));
-            QVERIFY(QFileInfo::exists(source));window.shutdown();
-        }
-    }
     void metadataAndMissingExif(){
         QTemporaryDir dir;const auto source=dir.filePath("metadata.jpg");
         ExifMetadata metadata;metadata.camera("Canon","EOS Test",400,1.0f/125,2.8f,50,"50mm Test");

@@ -123,7 +123,7 @@ void ShortcutsDialog::populate(){
         {"open","Open folder"},{"settings","Settings"},{"fit","Fit photo"},{"actual","Toggle 100% / Fit"},
         {"zoomIn","Zoom in"},{"zoomOut","Zoom out"},{"fullscreen","Toggle fullscreen"},
         {"escape","Cancel crop / leave fullscreen"},{"skip","Skip photo"},
-        {"undoAssignment","Undo last copy or removal"},{"clearAssignment","Clear latest placement"},{"confirmCrop","Confirm crop"}
+        {"clearAssignment","Clear latest placement"},{"confirmCrop","Confirm crop"}
     };
     auto add=[this](const QString& title,const QString& primary,const QString& alternate,const QString& kind,const QString& action){
         const int row=table_->rowCount();table_->insertRow(row);
@@ -133,7 +133,7 @@ void ShortcutsDialog::populate(){
     };
     const QVector<QStringList> groups={
         {"next","previous","first","last","open"},{"fit","actual","zoomIn","zoomOut","fullscreen"},
-        {"skip","undoAssignment","clearAssignment"},{"confirmCrop"},{"escape","settings"}
+        {"skip","clearAssignment"},{"confirmCrop"},{"escape","settings"}
     };
     const int category=categories_->currentIndex();
     for(const auto& action:groups[category]){

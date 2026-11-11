@@ -22,8 +22,7 @@ public:
     bool destinationRenamePending() const;
     bool saveTask(const ProcessingTask&, QString& error);
     bool changeAssignment(const Photo&, const QString& taskId, const ProcessingTask* created,
-                          const QString& retiredId, bool pushUndo, const QString& previousId,
-                          bool popUndo, QString& error,const QString& categoryId={});
+                          const QString& retiredId, QString& error,const QString& categoryId={});
     bool savePosition(const QString& folder, const QString& photoId, QString& error);
     bool saveWatermark(const WatermarkSnapshot& snapshot,QString& error);
     bool hydrateWatermark(WatermarkSnapshot& snapshot,QString& error);

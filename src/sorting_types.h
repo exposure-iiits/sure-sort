@@ -29,13 +29,11 @@ struct ProcessingTask {
     int automaticRetries=0;
     int retryOperation=0; // 0: none; 1: prepare, 2: recover, 4: cleanup.
 };
-struct UndoEntry { Photo photo; QString previousTask; QString categoryId; };
 struct SessionSnapshot {
     DestinationConfig config;
     QString inputFolder, currentPhoto;
     QVector<ProcessingTask> tasks;
     QHash<QString, QString> assignments;
-    QVector<UndoEntry> undo;
     WatermarkSnapshot watermark;
     QHash<QString,PhotoEdits> edits;
     QJsonArray editBindings;

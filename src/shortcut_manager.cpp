@@ -23,7 +23,6 @@ ShortcutManager::ShortcutManager(QWidget* window) : QObject(window), window_(win
     bind("zoomIn", QKeySequence(Qt::Key_Equal)); bind("zoomOut", QKeySequence(Qt::Key_Minus));
     bind("fullscreen", QKeySequence(Qt::Key_F11)); bind("escape", QKeySequence(Qt::Key_Escape));
     bind("skip",QKeySequence(Qt::Key_Space),false);
-    bind("undoAssignment",QKeySequence(Qt::CTRL | Qt::Key_Z),false);
     bind("clearAssignment",QKeySequence(Qt::Key_Backspace),false);
     bind("confirmCrop",QKeySequence(Qt::Key_Return),false);bind("confirmCrop",QKeySequence(Qt::Key_Enter),false);
     for(const auto& binding:bindings_)appBindings_.append(QJsonObject{{"action",binding.action},{"trigger",binding.trigger.toString(QKeySequence::PortableText)}});
@@ -66,6 +65,7 @@ bool ShortcutManager::validateAppBindings(const QJsonArray& input,QString& error
 }
 bool ShortcutManager::setAppBindings(const QJsonArray& input,QString& error) {
     auto normalized=input;
+    for(int i=normalized.size()-1;i>=0;--i)if(normalized[i].toObject()["action"]=="undoAssignment")normalized.removeAt(i);
     // Older sessions stored Shift+'+' as a third Zoom-in entry. It is the same
     // physical plus key; normalize that alias before exposing two editable slots.
     bool plus=false;for(const auto& value:input){const auto row=value.toObject();if(row["action"]=="zoomIn"&&row["trigger"]=="+")plus=true;}
@@ -77,7 +77,7 @@ bool ShortcutManager::setAppBindings(const QJsonArray& input,QString& error) {
         const auto row=value.toObject();const auto action=row["action"].toString();
         const auto key=QKeySequence::fromString(row["trigger"].toString(),QKeySequence::PortableText);
         if(key.isEmpty())continue;
-        bool repeat=action!="settings"&&action!="skip"&&action!="undoAssignment"&&action!="clearAssignment"&&action!="confirmCrop";
+        bool repeat=action!="settings"&&action!="skip"&&action!="clearAssignment"&&action!="confirmCrop";
         bind(action,key,repeat);
     }
     held_.clear();return true;

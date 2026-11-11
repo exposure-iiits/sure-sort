@@ -22,6 +22,7 @@ public:
     void setMessage(QString text);
     void setLoading(bool loading);
     void showToast(const QString& text);
+    QString toastText() const {return toast_;}
     void setWatermark(const WatermarkSnapshot& snapshot);
     void setEdits(const PhotoEdits& edits);
     const PhotoEdits& edits() const {return edits_;}

@@ -132,6 +132,8 @@ SettingsDialog::SettingsDialog(SortingController* sorting, ShortcutManager* shor
 
     auto* viewing=new QWidget(this);auto* viewingLayout=new QVBoxLayout(viewing);viewingLayout->setContentsMargins(0,16,0,0);viewingLayout->setSpacing(12);
     auto* filmstrip=new QCheckBox("Show photo thumbnail strip",viewing);filmstrip->setObjectName("showFilmstrip");filmstrip->setChecked(sorting_->uiPreferences().value("showFilmstrip").toBool(true));viewingLayout->addWidget(filmstrip);
+    auto* destinationToast=new QCheckBox("Show destination folder toast after copying",viewing);destinationToast->setObjectName("showDestinationToast");destinationToast->setChecked(sorting_->uiPreferences().value("showDestinationToast").toBool(false));viewingLayout->addWidget(destinationToast);
+    connect(destinationToast,&QCheckBox::toggled,this,[this,destinationToast](bool enabled){auto preferences=sorting_->uiPreferences();preferences["showDestinationToast"]=enabled;if(!sorting_->saveUiPreferences(preferences)){QSignalBlocker block(destinationToast);destinationToast->setChecked(!enabled);feedback_->setText("Destination toast preference could not be saved.");}});
     auto* positionLabel=new QLabel("Thumbnail strip position",viewing);viewingLayout->addWidget(positionLabel);
     auto* position=new QComboBox(viewing);position->setObjectName("filmstripPosition");for(const auto& item:QStringList{"Bottom","Top","Left","Right"})position->addItem(item,item.toLower());
     const int savedPosition=position->findData(sorting_->uiPreferences().value("filmstripPosition").toString("left"));position->setCurrentIndex(qMax(0,savedPosition));viewingLayout->addWidget(position,0,Qt::AlignLeft);

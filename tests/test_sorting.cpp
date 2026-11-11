@@ -51,7 +51,7 @@ private slots:
         QVERIFY(validateDestinationConfig(c).isEmpty());
         QWidget window;ShortcutManager manager(&window);QString error;
         QVERIFY(!manager.setDestinations({{"day",QKeySequence(Qt::Key_Right)}},error));
-        QVERIFY(!manager.setDestinations({{"day",QKeySequence(Qt::CTRL|Qt::Key_Z)}},error));
+        QVERIFY(manager.setDestinations({{"day",QKeySequence(Qt::CTRL|Qt::Key_Z)}},error));
         QVERIFY(!manager.setDestinations({{"day",QKeySequence(Qt::Key_1)},{"night",QKeySequence(Qt::Key_1)}},error));
         QVERIFY(manager.setDestinations({{"day",QKeySequence(Qt::Key_1)}},error));
         QSignalSpy spy(&manager,&ShortcutManager::triggered);window.show();
@@ -107,36 +107,6 @@ private slots:
         controller.cancelPending();QCOMPARE(controller.remaining(),0);QTRY_COMPARE(active.load(),0);
         for(int i=0;i<200;++i)QCOMPARE(controller.assignment(QString::number(i)).status,QString("cancelled"));
     }
-    void queuedUndoAndRunningReassignment() {
-        QTemporaryDir dir;const auto source=dir.filePath("frame.jpg");QVERIFY(write(source,jpeg()));std::atomic_bool first{true},release{false};
-        SortingController controller(nullptr,[&](ProcessingTask t,const CancelToken& cancel){
-            if(first.exchange(false))while(!release&&!cancel->load())QThread::msleep(2);
-            return ProcessingPipeline::prepare(t,cancel);
-        });
-        QVERIFY(controller.initialize(dir.filePath("session.sqlite")));QVERIFY(controller.configure(config(dir.filePath("out"))));
-        Photo one{"one",{source}},two{"two",{source}};
-        controller.assign(one,"day");controller.assign(two,"day");controller.undo();QVERIFY(controller.assignment("two").id.isEmpty());
-        controller.assign(one,"night");release=true;QTRY_COMPARE_WITH_TIMEOUT(controller.assignment("one").status,QString("completed"),5000);
-        QVERIFY(QFileInfo::exists(dir.filePath("out/Day/frame.jpg")));QCOMPARE(controller.assignment("one").categoryId,QString("night"));
-        QVERIFY(QFileInfo::exists(dir.filePath("out/Night/frame.jpg")));
-    }
-    void completedUndoClearAndModifiedOutput() {
-        QTemporaryDir dir;const auto source=dir.filePath("frame.jpg");const auto bytes=jpeg();QVERIFY(write(source,bytes));
-        SortingController controller;QVERIFY(controller.initialize(dir.filePath("session.sqlite")));QVERIFY(controller.configure(config(dir.filePath("out"))));
-        Photo photo{"one",{source}};controller.assign(photo,"day");QTRY_COMPARE(controller.assignment("one").status,QString("completed"));
-        const auto first=controller.assignment("one").outputPath;controller.undo();QVERIFY(controller.assignment("one").id.isEmpty());
-#ifdef Q_OS_WIN
-        QTRY_VERIFY(!QFileInfo::exists(first));
-#endif
-        controller.assign(photo,"day");QTRY_COMPARE(controller.assignment("one").status,QString("completed"));
-        const auto modified=controller.assignment("one").outputPath;QVERIFY(write(modified,"user edited photograph"));
-        controller.clearAssignment(photo);QVERIFY(!controller.assignment("one").id.isEmpty());
-        QTRY_VERIFY(!controller.issues().isEmpty());QCOMPARE(read(modified),QByteArray("user edited photograph"));QCOMPARE(read(source),bytes);
-        QTRY_COMPARE(controller.assignment("one").retryOperation,0);
-        QVERIFY(QFile::rename(modified,modified+".external"));controller.retryFailed();QTRY_VERIFY(controller.assignment("one").id.isEmpty());
-        controller.undo();QTRY_COMPARE(controller.assignment("one").status,QString("completed"));
-        QCOMPARE(read(modified+".external"),QByteArray("user edited photograph"));
-    }
     void replacedIdenticalOutputPreserved() {
         QTemporaryDir dir;const auto source=dir.filePath("frame.jpg");QVERIFY(write(source,jpeg()));
         auto prepared=ProcessingPipeline::prepare(task({"one",{source}},dir.filePath("out")),{});auto output=ProcessingPipeline::publish(prepared,{});
@@ -155,30 +125,13 @@ private slots:
         QCOMPARE(failed.status,"failed");QCOMPARE(read(prepared.outputPath),QByteArray("external file created after prepare"));
         auto cleaned=ProcessingPipeline::cleanup(failed);QCOMPARE(cleaned.status,"preserved");QCOMPARE(read(prepared.outputPath),QByteArray("external file created after prepare"));
     }
-    void persistenceRestartAndUndo() {
-        QTemporaryDir dir;const auto source=dir.filePath("frame.jpg");QVERIFY(write(source,jpeg()));const auto db=dir.filePath("session.sqlite");Photo photo{"one",{source}};QString output;
-        {
-            SortingController controller;QVERIFY(controller.initialize(db));QVERIFY(controller.configure(config(dir.filePath("out"))));
-            controller.assign(photo,"day");QTRY_COMPARE(controller.assignment("one").status,QString("completed"));output=controller.assignment("one").outputPath;
-            controller.savePosition(dir.path(),photo.id);
-        }
-        {
-            SortingController controller;QVERIFY(controller.initialize(db));QCOMPARE(controller.config().folders.size(),2);
-            QCOMPARE(controller.restoredFolder(),dir.path());QCOMPARE(controller.restoredPhoto(),photo.id);
-            QCOMPARE(controller.assignment("one").outputPath,output);QCOMPARE(controller.assignment("one").status,QString("completed"));
-            controller.undo();QVERIFY(controller.assignment("one").id.isEmpty());
-#ifdef Q_OS_WIN
-            QTRY_VERIFY(!QFileInfo::exists(output));
-#endif
-        }
-    }
     void recovery_data(){QTest::addColumn<bool>("alreadyPublished");QTest::newRow("prepared")<<false;QTest::newRow("published-before-db-commit")<<true;}
     void recovery() {
         QFETCH(bool,alreadyPublished);QTemporaryDir dir;const auto source=dir.filePath("frame.jpg");QVERIFY(write(source,jpeg()));
         const auto db=dir.filePath("session.sqlite");Photo photo{"one",{source}};QString output;
         {
             SessionStore store;QString error;QVERIFY2(store.open(db,error),qPrintable(error));auto t=task(photo,dir.filePath("out/Day"));
-            QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.changeAssignment(photo,t.id,&t,{},true,{},false,error));
+            QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.changeAssignment(photo,t.id,&t,{},error));
             t=ProcessingPipeline::prepare(t,{});QCOMPARE(t.status,"prepared");QVERIFY2(store.saveTask(t,error),qPrintable(error));output=t.outputPath;
             if(alreadyPublished)QCOMPARE(ProcessingPipeline::publish(t,{}).status,QString("completed"));
         }
@@ -190,7 +143,7 @@ private slots:
         {
             SessionStore store,second;QString error;QVERIFY(store.open(db,error));QVERIFY(!second.open(db,error));
             auto t=task({"one",{source}},dir.filePath("out/Day"));t.status="processing";QVERIFY(QDir().mkpath(t.directory));partial=t.temporaryPath;QVERIFY(write(partial,"unverified interrupted bytes"));
-            QVERIFY(store.changeAssignment(t.photo,t.id,&t,{},false,{},false,error));
+            QVERIFY(store.changeAssignment(t.photo,t.id,&t,{},error));
         }
         SortingController controller;QVERIFY(controller.initialize(db));QTRY_COMPARE(controller.assignment("one").status,QString("completed"));
         QCOMPARE(read(partial),QByteArray("unverified interrupted bytes"));QCOMPARE(read(controller.assignment("one").outputPath),jpeg());
@@ -239,7 +192,8 @@ private slots:
             QKeyEvent repeat(QEvent::KeyPress,Qt::Key_1,Qt::NoModifier,"1",true,5);QApplication::sendEvent(viewer,&repeat);
             QVERIFY(hasLabel(window,"IMG_2.jpg"));QTest::keyClick(viewer,Qt::Key_Space);QVERIFY(hasLabel(window,"IMG_3.jpg"));
             QTRY_VERIFY(QFileInfo::exists(output+"/Day/IMG_1.jpg"));QVERIFY(!QFileInfo::exists(output+"/Day/IMG_2.jpg"));
-            QTest::keyClick(viewer,Qt::Key_Z,Qt::ControlModifier);QVERIFY(hasLabel(window,"IMG_1.jpg"));
+            QTest::keyClick(viewer,Qt::Key_Z,Qt::ControlModifier);QVERIFY(hasLabel(window,"IMG_3.jpg"));
+            QTest::keyClick(viewer,Qt::Key_Home);QVERIFY(hasLabel(window,"IMG_1.jpg"));QTest::keyClick(viewer,Qt::Key_1);
 #ifdef Q_OS_WIN
             QTRY_VERIFY(!QFileInfo::exists(output+"/Day/IMG_1.jpg"));
 #endif

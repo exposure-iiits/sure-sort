@@ -1,6 +1,6 @@
 # Versioning
 
-Current version: **0.1.4**.
+Current version: **0.1.5**.
 
 Versions use **MAJOR.MINOR.PATCH**:
 

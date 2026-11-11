@@ -88,7 +88,7 @@ bool SortingController::openFolderSession(const QString& folder,const std::funct
     connect(child,&SortingController::watermarkChanged,this,[this,child](WatermarkSnapshot value){if(folderContext_==child)emit watermarkChanged(value);});
     connect(child,&SortingController::editsChanged,this,[this,child](const QString& id,PhotoEdits value){if(folderContext_==child)emit editsChanged(id,value);});
     connect(child,&SortingController::advanceRequested,this,[this,child]{if(folderContext_==child)emit advanceRequested();});
-    connect(child,&SortingController::focusRequested,this,[this,child](Photo photo){if(folderContext_==child)emit focusRequested(photo);});
+    connect(child,&SortingController::copyCompleted,this,[this,child](const QString& photo,const QString& destination){if(folderContext_==child)emit copyCompleted(photo,destination);});
     const bool initialized=context->initialize(selected);
     folderContexts_.insert(root,context);folderContext_=child;folderUnavailable_=false;
     if(!initialized){emit configChanged();return false;}
@@ -130,11 +130,6 @@ SortingController::DestinationToggle SortingController::toggleAssignment(const P
     }
     return assign(photo,destinationId).isEmpty()?DestinationToggle::None:DestinationToggle::CopyQueued;
 }
-bool SortingController::canUndo() const {
-    if(folderContext_)return folderContext_->canUndo();
-    for(const auto& task:tasks_)if(task.removalRequested&&(task.status=="removing"||task.retryOperation))return false;
-    return !undo_.isEmpty();
-}
 void SortingController::removeAssignment(const Photo& photo,const QString& destinationId){
     if(folderContext_)return folderContext_->removeAssignment(photo,destinationId);
     if(!ready_||stopped_||!flushEdits(photo.id))return;
@@ -148,7 +143,7 @@ void SortingController::removeAssignment(const Photo& photo,const QString& desti
 }
 void SortingController::finishRemoval(ProcessingTask& task){
     if(task.status=="retired-clean"){
-        change(task.photo,std::nullopt,true,false,task.categoryId);
+        change(task.photo,std::nullopt,task.categoryId);
     }
 }
 }

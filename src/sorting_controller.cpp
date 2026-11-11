@@ -35,7 +35,7 @@ bool SortingController::initialize(const QString& path) {
     QString error; SessionSnapshot snapshot;
     if (!store_.open(path,error) || !store_.load(snapshot,error)) { emit problem("Sorting unavailable: "+error); return false; }
     databasePath_=path;
-    config_=snapshot.config; assignments_=snapshot.assignments; undo_=snapshot.undo;
+    config_=snapshot.config; assignments_=snapshot.assignments;
     restoredFolder_=snapshot.inputFolder; restoredPhoto_=snapshot.currentPhoto;
     watermark_=snapshot.watermark;output_=snapshot.output;
     edits_=snapshot.edits;editBindings_=snapshot.editBindings;
@@ -119,20 +119,19 @@ QString SortingController::assign(const Photo& photo,const QString& destinationI
             // refresh: keep the completed image until the new one is prepared.
             t.predecessorPath=current.outputPath;t.predecessorDigest=current.digest;t.predecessorIdentity=current.identity;
         }
-        if (!change(photo,t,true,false)) return {};
+        if (!change(photo,t)) return {};
+        latest_[photo.id]=t.id;
         emit advanceRequested(); return t.id;
     }
     emit problem("Configure a destination folder first."); return {};
 }
-bool SortingController::change(const Photo& photo,std::optional<ProcessingTask> created,bool pushUndo,bool popUndo,const QString& targetCategory) {
+bool SortingController::change(const Photo& photo,std::optional<ProcessingTask> created,const QString& targetCategory) {
     const auto category=!targetCategory.isEmpty()?targetCategory:created?created->categoryId:assignment(photo.id).categoryId;
     const auto key=assignmentKey(photo.id,category),previous=assignments_.value(key);
     QString error;
-    if(!store_.changeAssignment(photo,created?created->id:QString(),created?&*created:nullptr,previous,pushUndo,previous,popUndo,error,category)){
+    if(!store_.changeAssignment(photo,created?created->id:QString(),created?&*created:nullptr,previous,error,category)){
         emit problem("Action was not saved: "+error);return false;
     }
-    if(pushUndo)undo_.append({photo,previous,category});
-    if(popUndo&&!undo_.isEmpty())undo_.removeLast();
     retire(previous,created&&!created->predecessorPath.isEmpty());
     assignments_.remove(key);
     photoAssignments_[photo.id].remove(category);
@@ -140,7 +139,7 @@ bool SortingController::change(const Photo& photo,std::optional<ProcessingTask> 
     if(created){
         tasks_.insert(created->id,*created);taskOrder_.append(created->id);assignments_[assignmentKey(photo.id,created->categoryId)]=created->id;
         photoAssignments_[photo.id][created->categoryId]=created->id;
-        if(pushUndo||latest_.value(photo.id)==previous||!latest_.contains(photo.id))latest_[photo.id]=created->id;
+        if(latest_.value(photo.id)==previous||!latest_.contains(photo.id))latest_[photo.id]=created->id;
         work_.push_back({*created,Operation::Prepare});
     }else if(latest_.value(photo.id)==previous){
         latest_.remove(photo.id);for(auto it=taskOrder_.crbegin();it!=taskOrder_.crend();++it){const auto t=tasks_.value(*it);if(t.photo.id==photo.id&&assignments_.value(assignmentKey(photo.id,t.categoryId))==t.id){latest_[photo.id]=t.id;break;}}
@@ -159,22 +158,6 @@ void SortingController::retire(const QString& id,bool preserveOutput) {
 void SortingController::clearAssignment(const Photo& photo) {
     if(folderContext_)return folderContext_->clearAssignment(photo);
     removeAssignment(photo,assignment(photo.id).categoryId);
-}
-void SortingController::undo() {
-    if(folderContext_)return folderContext_->undo();
-    if (!ready() || stopped_ || !canUndo()) return;
-    if(!flushEdits())return;
-    const auto entry=undo_.last();
-    std::optional<ProcessingTask> restore;
-    if (!entry.previousTask.isEmpty()) {
-        const auto old=tasks_.value(entry.previousTask);
-        restore=makeTask(entry.photo,old.categoryId,old.categoryName,old.directory);
-        restore->watermark=old.watermark;
-        restore->edits=old.edits;restore->output=old.output;
-        QString error;if(!store_.saveEdits(entry.photo.id,old.edits,error)){emit problem(error);return;}
-        edits_[entry.photo.id]=old.edits;emit editsChanged(entry.photo.id,old.edits);
-    }
-    if (change(entry.photo,restore,false,true,entry.categoryId)) emit focusRequested(entry.photo);
 }
 bool SortingController::persist(ProcessingTask& t) {
     QString error;
@@ -196,7 +179,7 @@ void SortingController::retryFailed() {
         if (t.status=="failed" || t.status=="cancelled"){
             auto retry=makeTask(t.photo,t.categoryId,t.categoryName,t.directory);retry.watermark=t.watermark;retry.edits=t.edits;retry.output=t.output;
             retry.predecessorPath=t.predecessorPath;retry.predecessorDigest=t.predecessorDigest;retry.predecessorIdentity=t.predecessorIdentity;
-            change(t.photo,retry,false,false);
+            change(t.photo,retry);
         }
     }
     pump();
@@ -361,7 +344,7 @@ void SortingController::finished(Work work,ProcessingTask result) {
     }
     if (work.operation==Operation::Cleanup) {
         const bool fullCleanupPending=std::any_of(work_.begin(),work_.end(),[&](const Work& item){return item.operation==Operation::Cleanup&&item.task.id==result.id;});
-        if(expected.status=="retired"&&fullCleanupPending)result=expected; // Preserve the durable full-undo request.
+        if(expected.status=="retired"&&fullCleanupPending)result=expected; // Preserve the durable full removal request.
         else if (current && expected.status=="cancelled"){
             result.status="cancelled";result.predecessorPath=expected.predecessorPath;
             result.predecessorDigest=expected.predecessorDigest;result.predecessorIdentity=expected.predecessorIdentity;
@@ -383,6 +366,7 @@ void SortingController::finished(Work work,ProcessingTask result) {
         if(result.status=="completed"&&edits_.contains(result.photo.id)&&result.edits!=edits(result.photo.id)){pendingEdits_[result.photo.id]=result.photo;editSaveTimer_.start();}
         if (!result.retryOperation&&!result.error.isEmpty()) emit problem(result.photo.name()+": "+result.error);
     }
+    if(current&&result.status=="completed"&&expected.status!="completed")emit copyCompleted(result.photo.name(),result.categoryName);
     emit assignmentChanged(result.photo.id); emit progressChanged(); pump();
 }
 void SortingController::shutdown() {
@@ -427,7 +411,7 @@ bool SortingController::flushEdits(const QString& assigningPhoto) {
         auto update=makeTask(it.value(),previous.categoryId,previous.categoryName,previous.directory);
         if(previous.status=="completed"){update.predecessorPath=previous.outputPath;update.predecessorDigest=previous.digest;update.predecessorIdentity=previous.identity;}
         else {update.predecessorPath=previous.predecessorPath;update.predecessorDigest=previous.predecessorDigest;update.predecessorIdentity=previous.predecessorIdentity;}
-        if(!change(it.value(),update,false,false))return false;
+        if(!change(it.value(),update))return false;
     }
     return true;
 }

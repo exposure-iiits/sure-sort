@@ -42,6 +42,8 @@
 #include <QWheelEvent>
 #include <QGridLayout>
 #include <QPropertyAnimation>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QSet>
 
 namespace photocull {
@@ -67,10 +69,10 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     auto* edit=new QPushButton("Edit",top);edit->setObjectName("toggleEdit");edit->setCheckable(true);
     folderLabel_ = new QLabel("No folder selected", top); folderLabel_->setObjectName("muted");
     folderLabel_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    outputLabel_=new QLabel("no output folder yet",top);outputLabel_->setObjectName("outputFolder");outputLabel_->setAlignment(Qt::AlignRight|Qt::AlignVCenter);outputLabel_->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred);
+    outputLabel_=new QPushButton("no output folder yet",top);outputLabel_->setObjectName("outputFolder");outputLabel_->setCursor(Qt::PointingHandCursor);outputLabel_->setFocusPolicy(Qt::NoFocus);outputLabel_->setAccessibleName("Output folder options");connect(outputLabel_,&QPushButton::clicked,this,&MainWindow::outputFolderMenu);outputLabel_->setSizePolicy(QSizePolicy::Fixed,QSizePolicy::Fixed);
     auto* fullscreen = new QPushButton(uiIcon("fullscreen"),QString(), top);fullscreen->setObjectName("fullscreenButton");fullscreen->setAccessibleName("Full screen"); fullscreen->setToolTip("Toggle fullscreen · F11");
     for(auto* button:{open,edit,information,histogram,shortcutButton,settings,fullscreen}){button->setProperty("toolbarButton",true);button->setFocusPolicy(Qt::NoFocus);button->setIconSize(QSize(18,18));}
-    topLayout->addWidget(brand); topLayout->addWidget(open);topLayout->addWidget(folderLabel_,1);topLayout->addWidget(outputLabel_,1);topLayout->addWidget(information);topLayout->addWidget(histogram);topLayout->addWidget(edit);topLayout->addWidget(shortcutButton);topLayout->addWidget(settings);topLayout->addWidget(fullscreen);
+    topLayout->addWidget(brand); topLayout->addWidget(open);topLayout->addWidget(folderLabel_,1);topLayout->addWidget(outputLabel_);topLayout->addWidget(information);topLayout->addWidget(histogram);topLayout->addWidget(edit);topLayout->addWidget(shortcutButton);topLayout->addWidget(settings);topLayout->addWidget(fullscreen);
     layout->addWidget(top);
     workspace_=new QStackedWidget(central);workspace_->setObjectName("workspacePages");
     photoPage_=new QWidget(workspace_);workspace_->addWidget(photoPage_);layout->addWidget(workspace_,1);
@@ -135,11 +137,9 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     auto* destinationBar=new QWidget(scroll);destinationBar->setObjectName("destinationBar");destinationsLayout_=new QHBoxLayout(destinationBar);
     destinationsLayout_->setContentsMargins(0,1,0,3);destinationsLayout_->setSpacing(7);scroll->setWidget(destinationBar);destinationRow->addWidget(scroll,1);
     destinationsLayout_->setSizeConstraint(QLayout::SetMinimumSize);
-    undoButton_=new QPushButton(uiIcon("undo"),"Undo",footer);undoButton_->setObjectName("undoAction");undoButton_->setToolTip("Undo last copy or removal · Ctrl+Z");undoButton_->setFocusPolicy(Qt::NoFocus);destinationRow->addWidget(undoButton_);
     resetButton_=new QPushButton(uiIcon("reset"),"Reset edits",footer);resetButton_->setObjectName("resetPhotoEdits");resetButton_->setToolTip("Reset all adjustments, rotation and crop on this photo");resetButton_->setFocusPolicy(Qt::NoFocus);resetButton_->hide();destinationRow->addWidget(resetButton_);
     connect(resetButton_,&QPushButton::clicked,this,[this]{editingAction("edit:reset");viewer_->setFocus();});
-    connect(undoButton_,&QPushButton::clicked,this,[this]{if(!viewer_->isCropping())sorting_.undo();viewer_->setFocus();});
-    connect(viewer_,&PhotoViewer::cropModeChanged,this,[this](bool active){undoButton_->setEnabled(!active&&sorting_.canUndo());updateStatus();});
+    connect(viewer_,&PhotoViewer::cropModeChanged,this,[this](bool){updateStatus();});
     footerLayout->addLayout(destinationRow);
     statusRow_=new QWidget(footer);statusRow_->setObjectName("photoStatusRow");auto* status=new QHBoxLayout(statusRow_);status->setContentsMargins(0,0,0,0);status->setSpacing(10);
     filenameLabel_=new QLabel("← → Browse   ·   F Fit   ·   Z 100%",footer);filenameLabel_->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred);status->addWidget(filenameLabel_,2);
@@ -217,7 +217,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
         if(action.startsWith("edit:")){editingAction(action);return;}
         if(viewer_->isCropping()){
             if(action=="escape"){viewer_->cancelCrop();return;}
-            if(action=="next"||action=="previous"||action=="first"||action=="last"||action=="skip"||action=="undoAssignment"||action=="clearAssignment"||action.startsWith("assign:"))return;
+            if(action=="next"||action=="previous"||action=="first"||action=="last"||action=="skip"||action=="clearAssignment"||action.startsWith("assign:"))return;
         }
         if (action == "open") chooseFolder();
         else if (action == "settings") openSettings();
@@ -232,7 +232,6 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
         else if (action == "fullscreen") toggleFullscreen();
         else if (action == "escape" && isFullScreen()) toggleFullscreen();
         else if (action=="skip") navigate(index+1);
-        else if (action=="undoAssignment") sorting_.undo();
         else if (action=="clearAssignment" && index>=0) sorting_.clearAssignment(controller_.catalog()[index]);
         else if (action.startsWith("assign:") && index>=0) toggleDestination(action.mid(7));
     });
@@ -242,10 +241,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     connect(&sorting_,&SortingController::assignmentChanged,this,[this](const QString&){filmstrip_->refreshCompletion();updateStatus();});
     connect(&sorting_,&SortingController::progressChanged,this,[this]{if(sorting_.ready()&&sorting_.issues().isEmpty())lastProblem_.clear();updateQueue();});
     connect(&sorting_,&SortingController::advanceRequested,this,[this]{navigate(controller_.index()+1);});
-    connect(&sorting_,&SortingController::focusRequested,this,[this](const Photo& photo){
-        for(int i=0;i<controller_.catalog().size();++i)if(controller_.catalog()[i].id==photo.id){navigate(i);return;}
-        restorePhoto_=photo.id; openFolder(QFileInfo(photo.displayPath()).absolutePath());
-    });
+    connect(&sorting_,&SortingController::copyCompleted,this,[this](const QString& photo,const QString& destination){if(sorting_.uiPreferences().value("showDestinationToast").toBool(false))viewer_->showToast(photo+" → "+destination);});
     connect(&sorting_,&SortingController::problem,this,[this](const QString& error){lastProblem_=error;queueButton_->setToolTip(error);updateQueue();});
     connect(queueButton_,&QPushButton::clicked,this,[this]{
         processingDetails_=!processingDetails_;updateQueue();
@@ -272,6 +268,26 @@ void MainWindow::chooseFolder() {
     const auto folder = QFileDialog::getExistingDirectory(this,"Open photo folder",folder_);
     if (!folder.isEmpty()) openFolder(folder);
     viewer_->setFocus();
+}
+void MainWindow::updateOutputButton(){
+    const auto root=sorting_.config().outputRoot;
+    const auto full=root.isEmpty()?QString("Choose output folder"):"→ "+QDir::toNativeSeparators(root);
+    const int limit=qBound(150,width()/3,360);
+    const auto metrics=outputLabel_->fontMetrics();
+    const int buttonWidth=qMin(limit,metrics.horizontalAdvance(full+QString::fromUtf8("  ▾"))+24);
+    outputLabel_->setFixedSize(buttonWidth,28);
+    outputLabel_->setText(metrics.elidedText(full,Qt::ElideMiddle,buttonWidth-38)+QString::fromUtf8("  ▾"));
+    outputLabel_->setToolTip((root.isEmpty()?QString("Output folder"):QDir::toNativeSeparators(root))+"\nOpen folder or change output location");
+}
+void MainWindow::outputFolderMenu(){
+    QMenu menu(this);menu.setObjectName("outputFolderMenu");menu.setMinimumWidth(220);
+    const auto root=sorting_.config().outputRoot;
+    auto* open=menu.addAction(uiIcon("folder"),"Open in Explorer");open->setObjectName("openOutputInExplorer");open->setEnabled(QFileInfo(root).isDir());
+    connect(open,&QAction::triggered,this,[root]{QDesktopServices::openUrl(QUrl::fromLocalFile(root));});
+    auto* change=menu.addAction(uiIcon("settings"),"Change output folder…");change->setObjectName("changeOutputFolder");change->setEnabled(sorting_.ready());
+    connect(change,&QAction::triggered,this,[this,root]{const auto selected=QFileDialog::getExistingDirectory(this,"Change output folder",root);if(selected.isEmpty())return;auto config=sorting_.config();config.outputRoot=selected;sorting_.configure(config);});
+    menu.ensurePolished();
+    menu.exec(outputLabel_->mapToGlobal(QPoint(outputLabel_->width()-menu.sizeHint().width(),outputLabel_->height()+6)));
 }
 void MainWindow::toggleDestination(const QString& id){
     const int index=controller_.index();
@@ -411,6 +427,7 @@ void MainWindow::resizeEvent(QResizeEvent* event){
     QMainWindow::resizeEvent(event);
     if(isFullScreen())topBar_->setGeometry(0,0,centralWidget()->width(),42);
     layoutPhotoTools();
+    updateOutputButton();
     typeLabel_->setVisible(width()>=780);dimensionsLabel_->setVisible(width()>=700);outputLabel_->setVisible(width()>=900);
 }
 void MainWindow::updateResetButton(){
@@ -443,7 +460,7 @@ void MainWindow::rebuildDestinations() {
     destinationEditor_=nullptr;
     if(auto* scroll=findChild<QScrollArea*>("destinationScroll"))scroll->setFixedHeight(44);
     const auto output=sorting_.config().outputRoot;
-    outputLabel_->setText(output.isEmpty()?"no output folder yet":"→ "+QDir::toNativeSeparators(output));outputLabel_->setToolTip(output);
+    updateOutputButton();
     while(auto* item=destinationsLayout_->takeAt(0)){if(item->widget())item->widget()->deleteLater();delete item;}
     destinationCounts_.clear();
     QHash<QString,QString> folderPaths;
@@ -640,7 +657,6 @@ void MainWindow::updateQueue() {
     else if(pending)status=QString("Saving %1…").arg(pending);
     else {const int completed=count(0);if(completed)status=QString("%1 sorted").arg(completed);}
     queueButton_->setText(status);
-    undoButton_->setEnabled(sorting_.canUndo()&&!viewer_->isCropping());
     const bool error=!issues.isEmpty()||!lastProblem_.isEmpty();
     queueButton_->setStyleSheet(error?"padding:2px 0;border:0;background:transparent;font-size:11px;color:#e0b58e;":"padding:2px 0;border:0;background:transparent;font-size:11px;color:#99999f;");
     const auto details=issues.isEmpty()?lastProblem_:issues.join('\n');queueButton_->setToolTip(details.isEmpty()?fullStatus+"\nFailures retry automatically":details);

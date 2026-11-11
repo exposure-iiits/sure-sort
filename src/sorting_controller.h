@@ -27,7 +27,6 @@ public:
     QString assign(const Photo& photo, const QString& destinationId);
     DestinationToggle toggleAssignment(const Photo& photo,const QString& destinationId);
     void clearAssignment(const Photo& photo);
-    void undo();
     void retryFailed();
     void cancelPending();
     void savePosition(const QString& folder,const QString& photoId);
@@ -48,7 +47,6 @@ public:
     const DestinationConfig& config() const { return folderContext_?folderContext_->config():config_; }
     ProcessingTask assignment(const QString& photoId,const QString& categoryId={}) const;
     QVector<ProcessingTask> assignments(const QString& photoId) const;
-    bool canUndo() const;
     int remaining() const;
     int failed() const;
     QStringList issues() const;
@@ -59,7 +57,7 @@ signals:
     void assignmentChanged(QString photoId);
     void progressChanged();
     void advanceRequested();
-    void focusRequested(photocull::Photo photo);
+    void copyCompleted(QString photoName,QString destinationName);
     void problem(QString message);
     void watermarkChanged(photocull::WatermarkSnapshot snapshot);
     void editsChanged(QString photoId,photocull::PhotoEdits edits);
@@ -67,7 +65,7 @@ private:
     enum class Operation { Prepare, Publish, Recover, Cleanup };
     struct Work { ProcessingTask task; Operation operation; };
     ProcessingTask makeTask(const Photo&,const QString& categoryId,const QString& categoryName,const QString& directory);
-    bool change(const Photo&,std::optional<ProcessingTask> task,bool pushUndo,bool popUndo,const QString& categoryId={});
+    bool change(const Photo&,std::optional<ProcessingTask> task,const QString& categoryId={});
     void retire(const QString& id,bool preserveOutput=false);
     void finishRemoval(ProcessingTask&);
     void saveSessionIndex();
@@ -88,7 +86,6 @@ private:
     QHash<QString,QString> latest_;
     QVector<QString> taskOrder_;
     QString databasePath_;
-    QVector<UndoEntry> undo_;
     QString restoredFolder_,restoredPhoto_;
     std::shared_ptr<QThreadPool> pool_;
     PrepareFunction prepare_;

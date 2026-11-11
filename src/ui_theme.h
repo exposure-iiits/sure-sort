@@ -25,8 +25,15 @@ inline QString photoUiStyle() {
         QWidget#quickDestinationEditor { background: #25394a; border: 1px solid #7598b8; border-radius: 10px; }
         QWidget#quickDestinationEditor QLabel { border: 0; color: #c4dcf1; }
         QLineEdit#quickFolderName { background: transparent; border: 0; padding: 3px; color: #e2effa; }
-        QPushButton#undoAction { padding: 4px 12px; border-radius: 8px; }
         QPushButton#applyCrop { background: #2f5a3c; color: #d4f5dc; border-color: #416d4e; }
+        QPushButton#outputFolder { background: transparent; color:#aaaab3; border:1px solid transparent; border-radius:6px; padding:3px 8px; text-align:left; }
+        QPushButton#outputFolder:hover { background:#29292f; border-color:#414147; color:#eeeeef; }
+        QPushButton#outputFolder:pressed { background:#34343c; }
+        QMenu { background:#252529; color:#d4d4d8; border:1px solid #45454d; border-radius:8px; padding:6px; }
+        QMenu::item { background:transparent; padding:8px 14px 8px 10px; border-radius:4px; }
+        QMenu::item:selected { background:#34485f; color:#f1f5fa; }
+        QMenu::item:disabled { color:#74747e; }
+        QMenu::separator { height:1px; background:#414147; margin:5px 8px; }
         QDialog { background: #1d1d1f; }
         QLineEdit, QComboBox, QKeySequenceEdit { background: #161617; border: 1px solid #414147; border-radius: 4px; padding: 5px; }
         QComboBox::drop-down { border: 0; width: 20px; }

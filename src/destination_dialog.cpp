@@ -30,7 +30,7 @@ DestinationDialog::DestinationDialog(const DestinationConfig& config,ShortcutMan
     table_->setSelectionBehavior(QAbstractItemView::SelectRows); layout->addWidget(table_,1);
     for (const auto& folder:config.folders) addFolder(folder);
     auto* buttons=new QHBoxLayout;
-    auto* note=new QLabel("Folder keys copy photos; press again to remove the copy.\nGreen folder outlines mark existing copies. Ctrl+Z undoes the last action.",this);
+    auto* note=new QLabel("Folder keys copy photos; press again to remove the copy.\nGreen folder outlines mark existing copies. Originals stay unchanged.",this);
     note->setWordWrap(true); note->setStyleSheet("color:#9aabba;font-size:12px;"); buttons->addWidget(note,1);
     auto* add=new QPushButton(uiIcon("plus"),QString(),this);add->setObjectName("addDestination");add->setFixedSize(36,36);add->setStyleSheet("padding:6px;");add->setToolTip("Add folder");add->setAccessibleName("Add folder");buttons->addWidget(add,0,Qt::AlignTop);layout->addLayout(buttons);
     connect(add,&QPushButton::clicked,this,[this,manager]{

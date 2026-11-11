@@ -36,6 +36,9 @@ private:
     void cancelDestinationEdit();
     void destinationMenu(const QString& id, const QPoint& position);
     void updateResetButton();
+    QPushButton* outputLabel_;
+    void outputFolderMenu();
+    void updateOutputButton();
     void chooseFolder();
     void navigate(int index);
     void toggleDestination(const QString& id);
@@ -64,13 +67,12 @@ private:
     ShortcutManager* shortcuts_;
     quint64 folderEpoch_ = 0;
     PhotoViewer* viewer_;
-    QLabel *folderLabel_, *outputLabel_, *filenameLabel_, *positionLabel_, *dimensionsLabel_, *typeLabel_, *zoomLabel_;
+    QLabel *folderLabel_, *filenameLabel_, *positionLabel_, *dimensionsLabel_, *typeLabel_, *zoomLabel_;
     QTimer resizeTimer_;
     QTimer positionTimer_;
     QPointer<CopyFlight> copyFlight_;
     QLabel* progressNotice_;
     QPushButton* queueButton_;
-    QPushButton* undoButton_;
     QPushButton* resetButton_;
     bool wasMaximized_ = false;
     bool processingDetails_ = false;

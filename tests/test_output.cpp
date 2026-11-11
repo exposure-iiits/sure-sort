@@ -114,16 +114,9 @@ private slots:
         auto expected=renderEdits(input,t.edits,{});QVERIFY(compositeWatermark(expected,t.watermark,error));expected=expected.scaled(outputSize(expected.size(),t.output),Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
         const auto p=ProcessingPipeline::prepare(t,{});QCOMPARE(p.status,"prepared");QCOMPARE(QImage(p.temporaryPath).convertToFormat(QImage::Format_ARGB32),expected.convertToFormat(QImage::Format_ARGB32));
     }
-    void persistenceRetryUndoAndRefresh(){
-        QTemporaryDir dir;const auto database=dir.filePath("session.sqlite"),source=dir.filePath("photo.jpg");const Photo photo{"photo",{source}};
-        {SortingController c;QVERIFY(c.initialize(database));QVERIFY(c.configure(config(dir.filePath("out"))));QVERIFY(c.setOutput({80,50,true}));QVERIFY(!c.assign(photo,"club").isEmpty());QTRY_COMPARE(c.assignment(photo.id).status,QString("failed"));QVERIFY(c.setOutput({100,75,false}));QVERIFY(write(source,encode(pattern({600,400})))) ;c.retryFailed();QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));QVERIFY(c.assignment(photo.id).output==OutputSettings({80,50,true}));QCOMPARE(QImage(c.assignment(photo.id).outputPath).size(),QSize(300,200));
-            const auto old=c.assignment(photo.id).outputPath;const auto id=c.assign(photo,"club");QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));QVERIFY(c.assignment(photo.id).id==id);QCOMPARE(c.assignment(photo.id).outputPath,old);QCOMPARE(QImage(old).size(),QSize(450,300));
-            c.assign(photo,"other");QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));QVERIFY(c.setOutput({90,100,true}));c.undo();QTRY_COMPARE(c.assignment(photo.id).status,QString("completed"));QVERIFY(c.assignment(photo.id).output==OutputSettings({100,75,false}));c.shutdown();}
-        {SortingController c;QVERIFY(c.initialize(database));QVERIFY(c.output()==OutputSettings({90,100,true}));QVERIFY(c.assignment(photo.id).output==OutputSettings({100,75,false}));QCOMPARE(c.processingStatus(),QString("Completed: 1 | Processing: 0 | Pending: 0 | Failed: 0"));}
-    }
     void interruptedSnapshotRecovery(){
         QTemporaryDir dir;const auto source=dir.filePath("photo.jpg"),database=dir.filePath("session.sqlite");QVERIFY(write(source,encode(pattern({600,400}))));auto t=task(source,dir.filePath("out/Club"));t.photo.id="photo";t.output={80,50,false};t.edits.rotation=1;QString error;
-        {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.saveOutput({100,75,true},error));QVERIFY(store.changeAssignment(t.photo,t.id,&t,{},false,{},false,error));t=ProcessingPipeline::prepare(t,{});QCOMPARE(t.status,"prepared");QVERIFY(store.saveTask(t,error));}
+        {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.saveOutput({100,75,true},error));QVERIFY(store.changeAssignment(t.photo,t.id,&t,{},error));t=ProcessingPipeline::prepare(t,{});QCOMPARE(t.status,"prepared");QVERIFY(store.saveTask(t,error));}
         {SortingController c;QVERIFY(c.initialize(database));QTRY_COMPARE(c.assignment("photo").status,QString("completed"));QVERIFY(c.assignment("photo").output==OutputSettings({80,50,false}));QCOMPARE(QImage(c.assignment("photo").outputPath).size(),QSize(200,300));QVERIFY(!read(c.assignment("photo").outputPath).contains(QByteArray("Exif\0\0",6)));}
     }
     void largeBatchKeepsEventsMoving(){

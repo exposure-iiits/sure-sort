@@ -26,8 +26,6 @@ inline QIcon uiIcon(const QString& name){
         p.drawLine(4,6,20,6);p.drawLine(9,3,15,3);p.drawLine(6,6,7,21);p.drawLine(7,21,17,21);p.drawLine(17,21,18,6);p.drawLine(10,10,10,17);p.drawLine(14,10,14,17);
     }else if(name=="reset"){
         QPainterPath path;path.moveTo(5,8);path.cubicTo(9,0,22,5,21,13);path.cubicTo(20,23,5,23,3,14);p.drawPath(path);p.drawLine(5,3,5,8);p.drawLine(5,8,10,8);
-    }else if(name=="undo"){
-        QPainterPath path;path.moveTo(7,5);path.lineTo(3,9);path.lineTo(7,13);path.moveTo(3,9);path.lineTo(14,9);path.cubicTo(23,9,23,20,14,20);p.drawPath(path);
     }else if(name=="folder"){
         QPainterPath path;path.moveTo(3,7);path.lineTo(3,5);path.lineTo(9,5);path.lineTo(11,7);path.lineTo(21,7);path.lineTo(21,19);path.lineTo(3,19);path.closeSubpath();p.drawPath(path);p.drawLine(3,10,21,10);
     }else if(name=="exitFullscreen"){
