@@ -28,7 +28,7 @@ QByteArray read(const QString& p){QFile f(p);return f.open(QIODevice::ReadOnly)?
 QImage pattern(QSize size={601,403}){QImage image(size,QImage::Format_RGB32);for(int y=0;y<size.height();++y)for(int x=0;x<size.width();++x)image.setPixel(x,y,qRgb((x*17+y*11)%256,(y*13+x*3)%256,(x+y*7)%256));image.setColorSpace(QColorSpace::SRgb);return image;}
 QByteArray encode(const QImage& image,const char* format="JPEG"){QByteArray bytes;QBuffer buffer(&bytes);buffer.open(QIODevice::WriteOnly);QImageWriter writer(&buffer,format);writer.setQuality(100);writer.write(image);return bytes;}
 ProcessingTask task(const QString& path,const QString& directory){ProcessingTask t;t.id=newId();t.photo={t.id,{path}};t.directory=directory;t.categoryId="club";t.categoryName="Club";t.temporaryPath=directory+"/.photocull-"+t.id+".part";return t;}
-DestinationConfig config(const QString& root){return {root,{{"club","Club","1","copy"},{"other","Other","2","copy"}}};}
+DestinationConfig config(const QString& root){return {root,{{"club","Club","1"},{"other","Other","2"}}};}
 QByteArray tiff(bool big=false){
     auto s=[big](quint16 n){auto bytes=fixture::le16(n);if(big)std::reverse(bytes.begin(),bytes.end());return bytes;};
     auto l=[big](quint32 n){auto bytes=fixture::le32(n);if(big)std::reverse(bytes.begin(),bytes.end());return bytes;};

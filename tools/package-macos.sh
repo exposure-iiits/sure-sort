@@ -32,7 +32,7 @@ cmake -S "$project_root" -B "$build_dir" -G Ninja \
     -DCMAKE_PREFIX_PATH="$qt_root;$raw_root" \
     -DCMAKE_OSX_ARCHITECTURES="$architecture"
 cmake --build "$build_dir" --parallel 3
-# Move/Undo tests require Windows locks; this check does not validate those paths.
+# Verified output removal tests require Windows locks; this check does not validate those paths.
 ctest --test-dir "$build_dir" --output-on-failure -R '^folder_scanner_tests$'
 cmake --install "$build_dir" --prefix "$stage"
 

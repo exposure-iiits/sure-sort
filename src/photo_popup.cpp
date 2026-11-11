@@ -91,5 +91,4 @@ void PhotoPopup::reposition(){
     setGeometry(parentWidget()->width()-width-12,12,width,height);raise();
 }
 void PhotoPopup::paintEvent(QPaintEvent*){QPainter painter(this);painter.setRenderHint(QPainter::Antialiasing);painter.setPen(QPen(QColor(255,255,255,42),1));painter.setBrush(QColor(30,30,35,235));painter.drawRoundedRect(QRectF(rect()).adjusted(.5,.5,-.5,-.5),12,12);}
-void PhotoPopup::keyPressEvent(QKeyEvent* event){if(event->key()==Qt::Key_Escape){hide();emit dismissed();event->accept();return;}QWidget::keyPressEvent(event);}
 }

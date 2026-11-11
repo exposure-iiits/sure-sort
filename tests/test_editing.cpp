@@ -35,7 +35,7 @@ QImage pattern(QSize size={600,400}) {auto image=solid(size);for(int y=0;y<size.
 QByteArray encode(const QImage& image,const char* format="PNG"){QByteArray bytes;QBuffer b(&bytes);b.open(QIODevice::WriteOnly);image.save(&b,format,100);return bytes;}
 bool write(const QString& path,const QByteArray& bytes){QFile f(path);return f.open(QIODevice::WriteOnly)&&f.write(bytes)==bytes.size();}
 QByteArray read(const QString& path){QFile f(path);return f.open(QIODevice::ReadOnly)?f.readAll():QByteArray();}
-DestinationConfig config(const QString& root){return {root,{{"club","Club","1","copy"}}};}
+DestinationConfig config(const QString& root){return {root,{{"club","Club","1"}}};}
 ProcessingTask task(const QString& source,const QString& output,const PhotoEdits& edits){ProcessingTask t;t.id=newId();t.photo={newId(),{source}};t.directory=output;t.categoryId="club";t.categoryName="Club";t.temporaryPath=QDir(output).filePath(".photocull-"+t.id+".part");t.edits=edits;return t;}
 bool near(QColor a,QColor b,int tolerance=6){return qAbs(a.red()-b.red())<=tolerance&&qAbs(a.green()-b.green())<=tolerance&&qAbs(a.blue()-b.blue())<=tolerance;}
 QImage frame(PhotoViewer& viewer){return viewer.grab().toImage().scaled(viewer.size(),Qt::IgnoreAspectRatio,Qt::SmoothTransformation);}
@@ -248,11 +248,6 @@ private slots:
         next=task(source,first.directory,e);next.predecessorPath=recovered.outputPath;next.predecessorDigest=recovered.digest;next.predecessorIdentity=recovered.identity;
         const auto race=ProcessingPipeline::prepare(next,{});QCOMPARE(race.status,"prepared");QVERIFY(write(recovered.outputPath,"changed after prepare"));const auto result=ProcessingPipeline::publish(race,{});QCOMPARE(result.status,"failed");QCOMPARE(read(recovered.outputPath),QByteArray("changed after prepare"));
 #endif
-    }
-    void schemaTwoMigration(){
-        QTemporaryDir dir;const auto database=dir.filePath("legacy.sqlite");QString error;{SessionStore store;QVERIFY(store.open(database,error));PhotoEdits e;e.shadows=15;QVERIFY(store.saveEdits("keep",e,error));}
-        const auto name=newId();{auto db=QSqlDatabase::addDatabase("QSQLITE",name);db.setDatabaseName(database);QVERIFY(db.open());QSqlQuery q(db);QVERIFY(q.exec("DROP TABLE photo_edits"));QVERIFY(q.exec("ALTER TABLE tasks DROP COLUMN edits"));QVERIFY(q.exec("PRAGMA user_version=2"));db.close();}QSqlDatabase::removeDatabase(name);
-        SessionStore store;QVERIFY(store.open(database,error));SessionSnapshot snapshot;QVERIFY(store.load(snapshot,error));QVERIFY(snapshot.edits.isEmpty());PhotoEdits e;e.saturation=-50;QVERIFY(store.saveEdits("new",e,error));
     }
     void windowWorkflowAndNavigation(){
         QTemporaryDir dir;const auto database=dir.filePath("session.sqlite");QVERIFY(QDir().mkpath(dir.filePath("input")));QVERIFY(pattern({1200,800}).save(dir.filePath("input/IMG_1.jpg")));QVERIFY(pattern({800,1200}).save(dir.filePath("input/IMG_2.jpg")));QString error;

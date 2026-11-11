@@ -10,7 +10,7 @@
 #include <QJsonObject>
 
 namespace photocull {
-struct Destination { QString id, name, shortcut; QString action="move"; QString alternateShortcut = {}; };
+struct Destination { QString id, name, shortcut; QString alternateShortcut = {}; };
 struct DestinationConfig { QString outputRoot; QVector<Destination> folders; };
 struct ProcessingTask {
     QString id;
@@ -25,13 +25,11 @@ struct ProcessingTask {
     OutputSettings output;
     QString predecessorPath;
     QByteArray predecessorDigest,predecessorIdentity;
-    QString action="copy",operationId;
-    bool outputReady=false;
+    bool removalRequested=false;
     int automaticRetries=0;
-    int retryOperation=0; // 0: none; 1: prepare, 2: recover, 3: move, 4: cleanup.
-    QStringList readSources; // Resolved on the GUI thread at dispatch; originals stay in the durable snapshot.
+    int retryOperation=0; // 0: none; 1: prepare, 2: recover, 4: cleanup.
 };
-struct UndoEntry { Photo photo; QString previousTask; QString actionId,categoryId; };
+struct UndoEntry { Photo photo; QString previousTask; QString categoryId; };
 struct SessionSnapshot {
     DestinationConfig config;
     QString inputFolder, currentPhoto;

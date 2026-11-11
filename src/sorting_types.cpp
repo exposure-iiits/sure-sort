@@ -21,7 +21,6 @@ QString validateDestinationConfig(const DestinationConfig& config) {
     if (config.outputRoot.isEmpty() || !QDir::isAbsolutePath(config.outputRoot)) return "Select an absolute output directory.";
     QSet<QString> names, ids, keys;
     for (const auto& folder : config.folders) {
-        if(folder.action!="copy"&&folder.action!="move")return "Choose Copy or Move for each folder.";
         auto error = validateFolderName(folder.name);
         if (!error.isEmpty()) return error;
         if (folder.id.isEmpty() || ids.contains(folder.id)) return "Each folder needs a unique ID.";

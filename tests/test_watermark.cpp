@@ -43,7 +43,7 @@ WatermarkSnapshot logo(QColor color=Qt::red,QSize size={40,20}) {
     WatermarkSnapshot snapshot;snapshot.settings.enabled=true;snapshot.settings.sizePercent=40;snapshot.settings.paddingPercent=10;
     snapshot.asset=asset;snapshot.assetId=asset?asset->id:QString();return snapshot;
 }
-DestinationConfig config(const QString& root){return {root,{{"club","Club","1","copy"}}};}
+DestinationConfig config(const QString& root){return {root,{{"club","Club","1"}}};}
 ProcessingTask task(const QString& path,const QString& directory,const WatermarkSnapshot& watermark) {
     ProcessingTask t;t.id=newId();t.photo={newId(),{path}};t.categoryId="club";t.categoryName="Club";t.directory=directory;
     t.temporaryPath=QDir(directory).filePath(".photocull-"+t.id+".part");t.watermark=watermark;return t;
@@ -247,15 +247,6 @@ private slots:
         QVERIFY(execute(database,[](QSqlDatabase& db){QSqlQuery q(db);return q.exec("UPDATE watermark_assets SET png=X'00'");}));
         {SessionStore store;QVERIFY(store.open(database,error));SessionSnapshot snapshot;QVERIFY(store.load(snapshot,error));QVERIFY(!snapshot.watermark.asset);QVERIFY(store.saveWatermark(wm,error));}
         {SessionStore store;QVERIFY(store.open(database,error));SessionSnapshot snapshot;QVERIFY(store.load(snapshot,error));QVERIFY(snapshot.watermark.asset);QCOMPARE(snapshot.watermark.asset->png,wm.asset->png);}
-    }
-    void phase2Migration(){
-        QTemporaryDir dir;const auto database=dir.filePath("legacy.sqlite");
-        QVERIFY(execute(database,[](QSqlDatabase& db){QSqlQuery q(db);return q.exec("CREATE TABLE tasks(id TEXT PRIMARY KEY,photo_id TEXT NOT NULL,sources TEXT NOT NULL,category_id TEXT NOT NULL,category_name TEXT NOT NULL,directory TEXT NOT NULL,status TEXT NOT NULL,temp_path TEXT NOT NULL,output_path TEXT NOT NULL,digest BLOB NOT NULL,identity BLOB NOT NULL,error TEXT NOT NULL)")&&
-            q.exec("INSERT INTO tasks VALUES('legacy','photo','[\"original.jpg\"]','club','Club','out','completed','','saved.jpg',X'01',X'02','')")&&q.exec("PRAGMA user_version=1");}));
-        {SessionStore store;QString error;QVERIFY2(store.open(database,error),qPrintable(error));SessionSnapshot snapshot;QVERIFY(store.load(snapshot,error));QCOMPARE(snapshot.tasks.size(),1);QCOMPARE(snapshot.tasks[0].id,"legacy");QCOMPARE(snapshot.tasks[0].outputPath,"saved.jpg");QVERIFY(!snapshot.tasks[0].watermark.settings.enabled);QCOMPARE(snapshot.tasks[0].digest,QByteArray::fromHex("01"));}
-        QVERIFY(execute(database,[](QSqlDatabase& db){QSqlQuery q(db);return q.exec("PRAGMA user_version")&&q.next()&&q.value(0).toInt()==7;}));
-        QVERIFY(execute(database,[](QSqlDatabase& db){QSqlQuery q(db);return q.exec("UPDATE tasks SET watermark_settings='broken json'");}));
-        SessionStore store;QString error;QVERIFY(store.open(database,error));SessionSnapshot snapshot;QVERIFY(!store.load(snapshot,error));QVERIFY(error.contains("watermark"));
     }
     void windowKeyboardWorkflow(){
         QTemporaryDir dir;QVERIFY(QDir().mkpath(dir.filePath("input")));QVERIFY(solid({1200,800}).save(dir.filePath("input/IMG_1.jpg")));QVERIFY(solid({800,1200}).save(dir.filePath("input/IMG_2.jpg")));

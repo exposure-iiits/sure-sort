@@ -14,6 +14,7 @@
 #include "destination_chip.h"
 #include "photo_popup.h"
 #include "filmstrip.h"
+#include "copy_flight.h"
 #include <QComboBox>
 #include <QSignalBlocker>
 #include <QStyle>
@@ -40,12 +41,13 @@
 #include <QScrollBar>
 #include <QWheelEvent>
 #include <QGridLayout>
+#include <QPropertyAnimation>
+#include <QSet>
 
 namespace photocull {
 MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath) : QMainWindow(parent) {
     setWindowTitle("Sure Sort"); resize(1280, 800); setMinimumSize(640, 480);
     controller_.setCacheBudget(cacheBudget);
-    controller_.setSourceResolver([this](const Photo& photo){return sorting_.resolvedPhoto(photo);});
     setStyleSheet(photoUiStyle());
     auto* central = new QWidget(this); setCentralWidget(central);
     auto* layout = new QVBoxLayout(central); layout->setContentsMargins(0,0,0,0); layout->setSpacing(0);
@@ -122,8 +124,8 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     connect(editPanel_,&EditPanel::cropAspectChanged,this,[ratio](double value){for(int i=0;i<ratio->count();++i)if(qAbs(ratio->itemData(i).toDouble()-value)<.00001){QSignalBlocker block(ratio);ratio->setCurrentIndex(i);break;}});
     connect(applyCrop,&QPushButton::clicked,viewer_,&PhotoViewer::confirmCrop);connect(cancelCrop,&QPushButton::clicked,viewer_,&PhotoViewer::cancelCrop);
 
-    filmstrip_=new Filmstrip(photoPage_);filmstrip_->setSourceResolver([this](const Photo& photo){return sorting_.resolvedPhoto(photo);});photoGrid->addWidget(filmstrip_,2,1);filmstrip_->hide();
-    filmstrip_->setCompletionResolver([this](const QString& id){for(const auto& task:sorting_.assignments(id))if(task.status=="completed")return true;return false;});
+    filmstrip_=new Filmstrip(photoPage_);photoGrid->addWidget(filmstrip_,2,1);filmstrip_->hide();
+    filmstrip_->setCompletionResolver([this](const QString& id){return sorting_.hasCompletedCopy(id);});
     connect(filmstrip_,&Filmstrip::photoSelected,this,[this](int index){if(!viewer_->isCropping()){navigate(index);viewer_->setFocus();}});
     auto* footer=new QWidget(central);footer_=footer;footer->setObjectName("photoFooter");
     auto* footerLayout=new QVBoxLayout(footer);footerLayout->setContentsMargins(10,3,10,4);footerLayout->setSpacing(2);
@@ -133,20 +135,20 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     auto* destinationBar=new QWidget(scroll);destinationBar->setObjectName("destinationBar");destinationsLayout_=new QHBoxLayout(destinationBar);
     destinationsLayout_->setContentsMargins(0,1,0,3);destinationsLayout_->setSpacing(7);scroll->setWidget(destinationBar);destinationRow->addWidget(scroll,1);
     destinationsLayout_->setSizeConstraint(QLayout::SetMinimumSize);
-    undoButton_=new QPushButton(uiIcon("undo"),"Undo",footer);undoButton_->setObjectName("undoAction");undoButton_->setToolTip("Undo last copy / move · Ctrl+Z");undoButton_->setFocusPolicy(Qt::NoFocus);destinationRow->addWidget(undoButton_);
+    undoButton_=new QPushButton(uiIcon("undo"),"Undo",footer);undoButton_->setObjectName("undoAction");undoButton_->setToolTip("Undo last copy or removal · Ctrl+Z");undoButton_->setFocusPolicy(Qt::NoFocus);destinationRow->addWidget(undoButton_);
     resetButton_=new QPushButton(uiIcon("reset"),"Reset edits",footer);resetButton_->setObjectName("resetPhotoEdits");resetButton_->setToolTip("Reset all adjustments, rotation and crop on this photo");resetButton_->setFocusPolicy(Qt::NoFocus);resetButton_->hide();destinationRow->addWidget(resetButton_);
     connect(resetButton_,&QPushButton::clicked,this,[this]{editingAction("edit:reset");viewer_->setFocus();});
     connect(undoButton_,&QPushButton::clicked,this,[this]{if(!viewer_->isCropping())sorting_.undo();viewer_->setFocus();});
-    connect(viewer_,&PhotoViewer::cropModeChanged,this,[this](bool active){undoButton_->setEnabled(!active&&sorting_.canUndo());updateResetButton();});
+    connect(viewer_,&PhotoViewer::cropModeChanged,this,[this](bool active){undoButton_->setEnabled(!active&&sorting_.canUndo());updateStatus();});
     footerLayout->addLayout(destinationRow);
     statusRow_=new QWidget(footer);statusRow_->setObjectName("photoStatusRow");auto* status=new QHBoxLayout(statusRow_);status->setContentsMargins(0,0,0,0);status->setSpacing(10);
     filenameLabel_=new QLabel("← → Browse   ·   F Fit   ·   Z 100%",footer);filenameLabel_->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred);status->addWidget(filenameLabel_,2);
-    assignedLabel_=new QLabel(footer);assignedLabel_->setObjectName("assignmentStatus");assignedLabel_->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred);status->addWidget(assignedLabel_,1);
     queueButton_=new QPushButton("Ready",footer);queueButton_->setObjectName("processingStatus");queueButton_->setFlat(true);queueButton_->setFocusPolicy(Qt::NoFocus);status->addWidget(queueButton_);
     positionLabel_=new QLabel("0 / 0",footer);dimensionsLabel_=new QLabel(footer);typeLabel_=new QLabel(footer);zoomLabel_=new QLabel(footer);
     for(auto* label:{positionLabel_,dimensionsLabel_,typeLabel_,zoomLabel_}){label->setStyleSheet("color:#a1a1a9;font-size:12px;");status->addWidget(label);}
     footerLayout->addWidget(statusRow_);
     errorLabel_=new QLabel(footer);errorLabel_->setObjectName("processingError");errorLabel_->setWordWrap(true);errorLabel_->setStyleSheet("color:#e0b58e;background:#322a25;border-radius:4px;padding:5px;font-size:11px;");errorLabel_->hide();footerLayout->addWidget(errorLabel_);
+    progressNotice_=new QLabel(footer);progressNotice_->setObjectName("folderProgressNotice");progressNotice_->setStyleSheet("color:#e0b58e;font-size:11px;");progressNotice_->hide();footerLayout->addWidget(progressNotice_);
     layout->addWidget(footer);
     destinationCounter_=new DestinationCounter(this);
     connect(destinationCounter_,&DestinationCounter::countsChanged,this,[this](const QHash<QString,int>& counts){
@@ -173,7 +175,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     connect(viewer_,&PhotoViewer::editsRendered,this,[this]{const auto size=viewer_->editedSourceSize();if(size.isValid())dimensionsLabel_->setText(QString("%1 × %2").arg(size.width()).arg(size.height()));if(photoPopup_->isVisible()&&photoPopup_->mode()==PhotoPopup::Histogram)photoPopup_->setHistogramImage(viewer_->histogramImage());});
     connect(&scanner_, &FolderScanner::finished, this, [this](quint64 epoch, Catalog photos, const QString& error) {
         if (epoch != folderEpoch_) return;
-        controller_.setCatalog(sorting_.mergeMovedPhotos(std::move(photos),folder_));
+        sorting_.registerCatalog(photos);controller_.setCatalog(std::move(photos));
         filmstrip_->setCatalog(controller_.catalog());applyViewerPreferences();
         viewer_->setLoading(false);
         if (!error.isEmpty()) viewer_->setMessage(error);
@@ -232,18 +234,13 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
         else if (action=="skip") navigate(index+1);
         else if (action=="undoAssignment") sorting_.undo();
         else if (action=="clearAssignment" && index>=0) sorting_.clearAssignment(controller_.catalog()[index]);
-        else if (action.startsWith("assign:") && index>=0) sorting_.assign(controller_.catalog()[index],action.mid(7));
+        else if (action.startsWith("assign:") && index>=0) toggleDestination(action.mid(7));
     });
     positionTimer_.setSingleShot(true); positionTimer_.setInterval(250);
     connect(&positionTimer_,&QTimer::timeout,this,[this]{sorting_.savePosition(folder_,controller_.index()>=0?controller_.catalog()[controller_.index()].id:QString());});
     connect(&sorting_,&SortingController::configChanged,this,&MainWindow::rebuildDestinations);
     connect(&sorting_,&SortingController::assignmentChanged,this,[this](const QString&){filmstrip_->refreshCompletion();updateStatus();});
     connect(&sorting_,&SortingController::progressChanged,this,[this]{if(sorting_.ready()&&sorting_.issues().isEmpty())lastProblem_.clear();updateQueue();});
-    connect(&sorting_,&SortingController::sourcesChanged,this,[this](const QString& id){
-        filmstrip_->invalidate(id);
-        const int index=controller_.index();if(index>=0&&controller_.catalog()[index].id==id&&!viewer_->hasPhoto())controller_.select(index,viewer_->displayTarget());
-        if(index>=0&&controller_.catalog()[index].id==id)updatePhotoPopup();
-    });
     connect(&sorting_,&SortingController::advanceRequested,this,[this]{navigate(controller_.index()+1);});
     connect(&sorting_,&SortingController::focusRequested,this,[this](const Photo& photo){
         for(int i=0;i<controller_.catalog().size();++i)if(controller_.catalog()[i].id==photo.id){navigate(i);return;}
@@ -253,7 +250,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     connect(queueButton_,&QPushButton::clicked,this,[this]{
         processingDetails_=!processingDetails_;updateQueue();
     });
-    if(databasePath.isEmpty()) databasePath=QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).filePath("session.sqlite");
+    if(databasePath.isEmpty()) databasePath=QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).filePath("profile.sqlite");
     if(sorting_.initialize(databasePath)) {
         applyViewerPreferences();
         restorePhoto_=sorting_.restoredPhoto();
@@ -264,6 +261,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
 }
 MainWindow::~MainWindow(){qApp->removeEventFilter(this);}
 void MainWindow::shutdown() {
+    stopCopyAnimation();
     photoPopup_->shutdown();filmstrip_->shutdown();
     destinationCounter_->shutdown();
     resizeTimer_.stop(); positionTimer_.stop();
@@ -275,14 +273,47 @@ void MainWindow::chooseFolder() {
     if (!folder.isEmpty()) openFolder(folder);
     viewer_->setFocus();
 }
+void MainWindow::toggleDestination(const QString& id){
+    const int index=controller_.index();
+    if(index<0||viewer_->isCropping()||!sorting_.ready())return;
+    const auto photo=controller_.catalog()[index];
+    // Capture before assign emits its synchronous auto-advance signal.
+    const auto bounds=viewer_->sortingBounds();
+    const QRect source(viewer_->mapTo(centralWidget(),bounds.topLeft()),bounds.size());
+    const auto snapshot=viewer_->sortingSnapshot();
+    const auto result=sorting_.toggleAssignment(photo,id);
+    if(result==SortingController::DestinationToggle::CopyQueued)animateCopy(snapshot,source,photo.id,id);
+    else if(result==SortingController::DestinationToggle::RemovalRequested&&copyFlight_&&copyFlight_->property("photoId")==photo.id&&copyFlight_->property("destinationId")==id)stopCopyAnimation();
+}
+void MainWindow::stopCopyAnimation(){
+    if(copyFlight_){delete copyFlight_.data();copyFlight_=nullptr;}
+}
+void MainWindow::animateCopy(const QImage& snapshot,const QRect& source,const QString& photoId,const QString& destinationId){
+    stopCopyAnimation();
+    if(snapshot.isNull()||source.isEmpty())return;
+    QWidget* destination=nullptr;
+    for(int i=0;i<destinationsLayout_->count();++i){auto* widget=destinationsLayout_->itemAt(i)->widget();if(widget&&widget->property("destinationChip").toBool()&&widget->property("destinationId")==destinationId){destination=widget;break;}}
+    if(!destination)return;
+    if(auto* layout=centralWidget()->layout())layout->activate();
+    if(auto* scroll=findChild<QScrollArea*>("destinationScroll"))scroll->ensureWidgetVisible(destination,8,0);
+    auto* surface=centralWidget();const auto center=destination->mapTo(surface,destination->rect().center());
+    auto* flight=new CopyFlight(snapshot,source,QRectF(QPointF(center)-QPointF(10,8),QSizeF(20,16)),surface);copyFlight_=flight;
+    flight->setProperty("photoId",photoId);flight->setProperty("destinationId",destinationId);flight->show();flight->raise();
+    auto* animation=new QPropertyAnimation(flight,"progress",flight);animation->setDuration(520);animation->setStartValue(0.0);animation->setEndValue(1.0);animation->setEasingCurve(QEasingCurve::Linear);
+    connect(animation,&QPropertyAnimation::finished,flight,&QObject::deleteLater);animation->start();
+}
 void MainWindow::openFolder(const QString& folder) {
-    ++folderEpoch_; controller_.clear(); resizeTimer_.stop(); folder_ = QDir(folder).absolutePath();
-    filmstrip_->setCatalog({});filmstrip_->hide();photoPopup_->hide();layoutPhotoTools();
-    findChild<QPushButton*>("photoInfoButton")->setChecked(false);findChild<QPushButton*>("histogramButton")->setChecked(false);
+    stopCopyAnimation();
+    if(!folder_.isEmpty())sorting_.savePosition(folder_,controller_.index()>=0?controller_.catalog()[controller_.index()].id:QString());
+    positionTimer_.stop();
+    ++folderEpoch_; controller_.clear(); resizeTimer_.stop(); folder_ = QFileInfo(folder).canonicalFilePath();if(folder_.isEmpty())folder_=QDir(folder).absolutePath();
+    sorting_.openFolderSession(folder_,[this]{QMessageBox box(QMessageBox::Question,"Choose saved progress","The folder progress and local progress both changed. Both will be preserved. Choose the session to continue.",QMessageBox::NoButton,this);auto* local=box.addButton("Use local progress",QMessageBox::AcceptRole);box.addButton("Use folder progress",QMessageBox::RejectRole);box.exec();return box.clickedButton()==local;});
+    restorePhoto_=sorting_.restoredPhoto();progressNotice_->setText(sorting_.progressNotice());progressNotice_->setVisible(!progressNotice_->text().isEmpty());
+    filmstrip_->setCatalog({});filmstrip_->hide();photoPopup_->setPhoto({});photoPopup_->setHistogramImage({});layoutPhotoTools();
     viewer_->resetPhoto(); viewer_->setLoading(false); viewer_->setMessage("Scanning folder…");
     folderLabel_->setText(QDir(folder_).dirName()); folderLabel_->setToolTip(folder_);
     dimensionsLabel_->clear(); typeLabel_->clear(); zoomLabel_->clear(); updateStatus();
-    scanner_.start(folder_, folderEpoch_);
+    scanner_.start(folder_, folderEpoch_,sorting_.excludedFolders());
     positionTimer_.start();
 }
 void MainWindow::navigate(int index) {
@@ -295,25 +326,53 @@ void MainWindow::navigate(int index) {
     filmstrip_->setCurrentIndex(index);updatePhotoPopup();
     positionTimer_.start();
 }
+void MainWindow::syncSavedDestinations(){
+    // Saved copies remain removable even after their shortcut mapping is deleted.
+    QSet<QString> configured;for(const auto& folder:sorting_.config().folders)configured.insert(folder.id);
+    QHash<QString,ProcessingTask> saved;const int index=controller_.index();
+    if(index>=0)for(const auto& task:sorting_.assignments(controller_.catalog()[index].id))if(!configured.contains(task.categoryId))saved.insert(task.categoryId,task);
+    bool changed=false;QSet<QString> present;
+    for(int i=destinationsLayout_->count()-1;i>=0;--i){auto* widget=destinationsLayout_->itemAt(i)->widget();if(!widget||!widget->property("savedDestination").toBool())continue;
+        const auto id=widget->property("destinationId").toString();
+        if(saved.contains(id)&&widget->property("destinationPath")==saved[id].directory){if(widget->property("destinationChip").toBool())present.insert(id);continue;}
+        auto* item=destinationsLayout_->takeAt(i);widget->deleteLater();delete item;destinationCounts_.remove(id);changed=true;
+    }
+    for(auto it=saved.cbegin();it!=saved.cend();++it)if(!present.contains(it.key())){
+        const auto& task=it.value();auto* chip=new DestinationChip({},task.categoryName,this);chip->setProperty("destinationChip",true);chip->setFocusPolicy(Qt::NoFocus);
+        auto* count=new QLabel("…",this);count->setObjectName("destinationPhotoCount");count->setProperty("folderName",task.categoryName);count->setAlignment(Qt::AlignCenter);count->setFixedSize(22,22);count->setStyleSheet("background:#353840;color:#cbd0da;border:1px solid #4b505b;border-radius:11px;font-size:11px;");
+        for(auto* widget:QList<QWidget*>{chip,count}){widget->setProperty("savedDestination",true);widget->setProperty("destinationId",task.categoryId);widget->setProperty("destinationPath",task.directory);}
+        int position=destinationsLayout_->count()-1;for(int i=0;i<destinationsLayout_->count();++i)if(auto* widget=destinationsLayout_->itemAt(i)->widget();widget&&widget->objectName()=="quickAddDestination"){position=i;break;}
+        destinationsLayout_->insertWidget(position,chip);destinationsLayout_->insertWidget(position+1,count);destinationCounts_.insert(task.categoryId,count);
+        connect(chip,&QPushButton::clicked,this,[this,id=task.categoryId]{toggleDestination(id);viewer_->setFocus();});changed=true;
+    }
+    if(changed){QHash<QString,QString> paths;for(int i=0;i<destinationsLayout_->count();++i)if(auto* widget=destinationsLayout_->itemAt(i)->widget();widget&&widget->property("destinationChip").toBool())paths.insert(widget->property("destinationId").toString(),widget->property("destinationPath").toString());destinationCounter_->setFolders(paths,sorting_.config().outputRoot);}
+}
 void MainWindow::updateStatus(const DecodedImage* result) {
     const int index = controller_.index();
     editPanel_->setEnabled(index>=0&&sorting_.ready());
-    findChild<QPushButton*>("photoInfoButton")->setEnabled(index>=0);
-    findChild<QPushButton*>("histogramButton")->setEnabled(index>=0);
+    findChild<QPushButton*>("photoInfoButton")->setEnabled(index>=0||!photoPopup_->isHidden());
+    findChild<QPushButton*>("histogramButton")->setEnabled(index>=0||!photoPopup_->isHidden());
     updateResetButton();
     positionLabel_->setText(QString("%1 / %2").arg(index + 1).arg(controller_.catalog().size()));
     if (index >= 0) {
         const auto& photo = controller_.catalog()[index];
         filenameLabel_->setText(photo.name()); filenameLabel_->setToolTip(photo.sources.join('\n'));
         typeLabel_->setText(photo.typeLabel());
-        QStringList placements,paths;for(const auto& assignment:sorting_.assignments(photo.id)){placements.append((assignment.action=="move"?"Move → ":"Copy → ")+assignment.categoryName+" · "+(assignment.retryOperation?QString("retrying %1/2").arg(assignment.automaticRetries):assignment.status));paths.append(assignment.outputPath.isEmpty()?assignment.directory:assignment.outputPath);}
-        assignedLabel_->setText(placements.join("  |  "));assignedLabel_->setToolTip(paths.join('\n'));
-        const auto assignments=sorting_.assignments(photo.id);
-        for(int i=0;i<destinationsLayout_->count();++i)if(auto* button=qobject_cast<QPushButton*>(destinationsLayout_->itemAt(i)->widget())){
-            bool assigned=false;for(const auto& task:assignments)if(task.categoryId==button->property("destinationId").toString()&&task.status!="cancelled"&&task.status!="retired-clean")assigned=true;
-            if(button->property("assigned").toBool()!=assigned){button->setProperty("assigned",assigned);button->style()->unpolish(button);button->style()->polish(button);}
-        }
-    } else { filenameLabel_->setText("← → Browse   ·   F Fit   ·   Z 100%"); assignedLabel_->clear(); }
+    } else filenameLabel_->setText("← → Browse   ·   F Fit   ·   Z 100%");
+    syncSavedDestinations();
+    for(int i=0;i<destinationsLayout_->count();++i)if(auto* button=qobject_cast<QPushButton*>(destinationsLayout_->itemAt(i)->widget());button&&button->property("destinationChip").toBool()){
+        const auto id=button->property("destinationId").toString();
+        const auto task=index>=0?sorting_.assignment(controller_.catalog()[index].id,id):ProcessingTask{};
+        const bool assigned=index>=0&&sorting_.hasCompletedCopy(controller_.catalog()[index].id,id);
+        const bool removing=task.removalRequested&&(task.status=="removing"||task.retryOperation);
+        button->setEnabled(index>=0&&sorting_.ready()&&!viewer_->isCropping()&&!removing);
+        if(button->property("assigned").toBool()!=assigned){button->setProperty("assigned",assigned);button->style()->unpolish(button);button->style()->polish(button);button->update();}
+        const bool pending=!task.id.isEmpty()&&(task.status=="queued"||task.status=="processing"||task.status=="prepared"||task.retryOperation);
+        const QString action=removing?"Removing copy…":assigned?"Copied here · Click or press this folder's shortcut to remove":pending?"Saving… · Click or press this folder's shortcut to cancel":"Click or press this folder's shortcut to copy";
+        const auto path=assigned?(!task.outputPath.isEmpty()?task.outputPath:task.predecessorPath):button->property("destinationPath").toString();
+        button->setToolTip(action+"\n"+QDir::toNativeSeparators(path)+(task.error.isEmpty()?QString():"\n"+task.error));
+        button->setAccessibleDescription(action);
+    }
     if (result) {
         const auto dimensions=viewer_->editedSourceSize();
         if (dimensions.isValid()) dimensionsLabel_->setText(QString("%1 × %2").arg(dimensions.width()).arg(dimensions.height()));
@@ -337,12 +396,6 @@ bool MainWindow::eventFilter(QObject* target,QEvent* event){
     if(event->type()==QEvent::Wheel)if(auto* scroll=findChild<QScrollArea*>("destinationScroll");scroll&&target==scroll->viewport()&&scroll->horizontalScrollBar()->maximum()>0){
         auto* wheel=static_cast<QWheelEvent*>(event);const auto pixel=wheel->pixelDelta(),angle=wheel->angleDelta();const int delta=!pixel.isNull()?(pixel.x()?pixel.x():pixel.y()):(angle.x()?angle.x():angle.y());scroll->horizontalScrollBar()->setValue(scroll->horizontalScrollBar()->value()-delta);return true;
     }
-    if(photoPopup_->isVisible()&&event->type()==QEvent::KeyPress&&static_cast<QKeyEvent*>(event)->key()==Qt::Key_Escape&&!QApplication::activeModalWidget()){
-        photoPopup_->hide();layoutPhotoTools();findChild<QPushButton*>("photoInfoButton")->setChecked(false);findChild<QPushButton*>("histogramButton")->setChecked(false);viewer_->setFocus();return true;
-    }
-    if(photoPopup_->isVisible()&&event->type()==QEvent::MouseButtonPress&&widget&&widget->window()==this&&!photoTools_->isAncestorOf(widget)&&widget!=photoTools_&&!informationTools_->isAncestorOf(widget)&&widget!=informationTools_&&widget!=findChild<QPushButton*>("toggleEdit")&&widget!=findChild<QPushButton*>("photoInfoButton")&&widget!=findChild<QPushButton*>("histogramButton")){
-        photoPopup_->hide();layoutPhotoTools();findChild<QPushButton*>("photoInfoButton")->setChecked(false);findChild<QPushButton*>("histogramButton")->setChecked(false);
-    }
     if(destinationEditor_&&widget&&(widget==destinationEditor_||destinationEditor_->isAncestorOf(widget))&&event->type()==QEvent::KeyPress&&static_cast<QKeyEvent*>(event)->key()==Qt::Key_Escape){
         cancelDestinationEdit();return true;
     }
@@ -354,6 +407,7 @@ bool MainWindow::eventFilter(QObject* target,QEvent* event){
     return QMainWindow::eventFilter(target,event);
 }
 void MainWindow::resizeEvent(QResizeEvent* event){
+    stopCopyAnimation();
     QMainWindow::resizeEvent(event);
     if(isFullScreen())topBar_->setGeometry(0,0,centralWidget()->width(),42);
     layoutPhotoTools();
@@ -385,6 +439,7 @@ void MainWindow::openSettings(int page){
     settingsDialog_->showPage(SettingsDialog::Page(page));
 }
 void MainWindow::rebuildDestinations() {
+    stopCopyAnimation();
     destinationEditor_=nullptr;
     if(auto* scroll=findChild<QScrollArea*>("destinationScroll"))scroll->setFixedHeight(44);
     const auto output=sorting_.config().outputRoot;
@@ -398,13 +453,13 @@ void MainWindow::rebuildDestinations() {
         bindings.append({folder.id,QKeySequence(folder.alternateShortcut,QKeySequence::PortableText)});
         auto* button=new DestinationChip(folder.shortcut,folder.name,this);
         button->setProperty("destinationChip",true);button->setProperty("destinationId",folder.id);button->setFocusPolicy(Qt::NoFocus);
-        button->setProperty("destinationAction",folder.action);
-        button->setToolTip((folder.action=="move"?"Move to ":"Copy to ")+QDir(sorting_.config().outputRoot).filePath(folder.name)+(folder.alternateShortcut.isEmpty()?QString():"\nAlternate: "+folder.alternateShortcut)); destinationsLayout_->addWidget(button);
+        button->setProperty("destinationPath",QDir(sorting_.config().outputRoot).filePath(folder.name));
+        button->setToolTip(QString("Copy to ")+QDir(sorting_.config().outputRoot).filePath(folder.name)+(folder.alternateShortcut.isEmpty()?QString():"\nAlternate: "+folder.alternateShortcut)); destinationsLayout_->addWidget(button);
         auto* count=new QLabel("…",this);count->setObjectName("destinationPhotoCount");count->setProperty("destinationId",folder.id);count->setProperty("folderName",folder.name);
         count->setAlignment(Qt::AlignCenter);count->setFixedSize(22,22);count->setStyleSheet("background:#353840;color:#cbd0da;border:1px solid #4b505b;border-radius:11px;font-size:11px;");
         count->setToolTip("Counting photos…");destinationsLayout_->addWidget(count);destinationsLayout_->addSpacing(5);
         destinationCounts_.insert(folder.id,count);folderPaths.insert(folder.id,QDir(sorting_.config().outputRoot).filePath(folder.name));
-        connect(button,&QPushButton::clicked,this,[this,id=folder.id]{if(!viewer_->isCropping()&&controller_.index()>=0)sorting_.assign(controller_.catalog()[controller_.index()],id);viewer_->setFocus();});
+        connect(button,&QPushButton::clicked,this,[this,id=folder.id]{toggleDestination(id);viewer_->setFocus();});
         button->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(button,&QPushButton::customContextMenuRequested,this,[this,button,id=folder.id](const QPoint& point){destinationMenu(id,button->mapToGlobal(point));});
     }
@@ -437,15 +492,11 @@ void MainWindow::rebuildDestinations() {
     connect(add,&QPushButton::clicked,this,[this]{editDestination();});
     destinationsLayout_->addStretch();
     destinationCounter_->setFolders(folderPaths,sorting_.config().outputRoot);
+    updateStatus();
 }
 void MainWindow::destinationMenu(const QString& id,const QPoint& position){
     QMenu menu(this);menu.setObjectName("destinationContextMenu");
-    QString action;for(const auto& folder:sorting_.config().folders)if(folder.id==id)action=folder.action;
-    for(const auto& value:QStringList{"copy","move"}){
-        auto* item=menu.addAction(value=="copy"?"Copy":"Move");item->setObjectName("destinationMode_"+value);item->setCheckable(true);item->setChecked(action==value);
-        connect(item,&QAction::triggered,this,[this,id,value]{auto config=sorting_.config();for(auto& folder:config.folders)if(folder.id==id)folder.action=value;sorting_.configure(config);});
-    }
-    menu.addSeparator();auto* rename=menu.addAction("Rename…");rename->setObjectName("renameDestination");
+    auto* rename=menu.addAction("Rename…");rename->setObjectName("renameDestination");
     connect(rename,&QAction::triggered,this,[this,id]{editDestination(id);});
     menu.exec(position);
 }
@@ -466,7 +517,6 @@ void MainWindow::editDestination(const QString& id){
     auto* editor=new QWidget(this);destinationEditor_=editor;editor->setObjectName("quickDestinationEditor");
     editor->setSizePolicy(QSizePolicy::Maximum,QSizePolicy::Fixed);
     editor->setProperty("suspendPhotoShortcuts",true);
-    editor->setProperty("destinationAction",selected.action);
     auto* row=new QHBoxLayout(editor);row->setContentsMargins(8,0,3,0);row->setSpacing(6);
     if(!selected.shortcut.isEmpty())row->addWidget(new QLabel(selected.shortcut,editor));
     auto* name=new QLineEdit(selected.name,editor);name->setObjectName("quickFolderName");
@@ -553,7 +603,7 @@ void MainWindow::applyViewerPreferences(){
 }
 void MainWindow::updatePhotoPopup(){
     const int index=controller_.index();if(index<0)return;
-    photoPopup_->setPhoto(sorting_.resolvedPhoto(controller_.catalog()[index]));
+    photoPopup_->setPhoto(controller_.catalog()[index]);
     if(photoPopup_->isVisible()&&photoPopup_->mode()==PhotoPopup::Histogram)photoPopup_->setHistogramImage(viewer_->histogramImage());
 }
 void MainWindow::togglePhotoPopup(bool histogram){

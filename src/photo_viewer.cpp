@@ -70,6 +70,16 @@ QImage PhotoViewer::histogramImage() const {
     return renderEdits(image.scaled(512,512,Qt::KeepAspectRatio,Qt::SmoothTransformation),edits);
 }
 void PhotoViewer::setWatermark(const WatermarkSnapshot& snapshot) {watermark_=snapshot;update();}
+QRect PhotoViewer::sortingBounds() const {return hasPhoto()?imageRect().toAlignedRect().intersected(rect()):QRect();}
+QImage PhotoViewer::sortingSnapshot() const {
+    const auto bounds=sortingBounds();if(bounds.isEmpty())return {};
+    const auto pixels=bounds.size()*devicePixelRatioF();
+    const auto size=pixels.width()>1280||pixels.height()>960?pixels.scaled(1280,960,Qt::KeepAspectRatio):pixels;
+    QImage snapshot(size,QImage::Format_ARGB32_Premultiplied);snapshot.fill(QColor("#161617"));
+    QPainter painter(&snapshot);painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.scale(qreal(size.width())/bounds.width(),qreal(size.height())/bounds.height());painter.translate(-bounds.topLeft());paintImage(painter);
+    return snapshot;
+}
 void PhotoViewer::updateFit() {
     if (!source_.isValid()) return;
     scale_ = qMin(double(width()) / source_.width(), double(height()) / source_.height());
@@ -110,11 +120,9 @@ void PhotoViewer::constrainPan() {
     const double y = qMax(0.0, (source_.height() * scale_ - height()) / 2.0);
     pan_.setX(qBound(-x, pan_.x(), x)); pan_.setY(qBound(-y, pan_.y(), y));
 }
-void PhotoViewer::paintEvent(QPaintEvent*) {
-    QPainter p(this);
-    p.fillRect(rect(), QColor("#161617"));
-    const QImage& image = rendered_.isNull()?(detail_.isNull()?preview_:detail_):rendered_;
-    if (!image.isNull()) {
+void PhotoViewer::paintImage(QPainter& p) const {
+    const QImage& image=rendered_.isNull()?(detail_.isNull()?preview_:detail_):rendered_;
+    if(image.isNull())return;
         p.setRenderHint(QPainter::SmoothPixmapTransform, zoomPercent() < 100.0);
         auto geometry=edits_;if(cropping_)geometry.crop={0,0,1,1};
         const auto pixels=editCropPixels(image.size(),geometry);const auto target=imageRect();
@@ -124,6 +132,13 @@ void PhotoViewer::paintEvent(QPaintEvent*) {
         p.setWorldTransform(editRotationTransform(image.size(),geometry),true);
         p.drawImage(QRectF(QPointF(),image.size()),image);p.restore();
         paintWatermark(p,cropping_&&!cropSelection_.isEmpty()?cropScreenRect():imageRect(),watermark_);
+}
+void PhotoViewer::paintEvent(QPaintEvent*) {
+    QPainter p(this);
+    p.fillRect(rect(), QColor("#161617"));
+    const QImage& image = rendered_.isNull()?(detail_.isNull()?preview_:detail_):rendered_;
+    if (!image.isNull()) {
+        paintImage(p);
         if(cropping_){
             QPainterPath outside;outside.setFillRule(Qt::OddEvenFill);outside.addRect(imageRect());
             if(!cropSelection_.isEmpty())outside.addRect(cropScreenRect());

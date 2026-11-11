@@ -8,3 +8,5 @@
 *.sqlite-wal
 *.sqlite-shm
 *.sqlite.lock
+*.sqlite-journal
+*.sqlite.base

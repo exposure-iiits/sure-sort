@@ -32,7 +32,7 @@ void PreviewController::setCatalog(Catalog photos) { clear(); photos_ = std::mov
 PreviewController::Job PreviewController::makeJob(int index, Kind kind) {
     Job job;
     job.serial = ++serial_; job.epoch = epoch_; job.generation = generation_; job.kind = kind;
-    job.request = {sourceResolver_?sourceResolver_(photos_[index]):photos_[index], target_, kind == Kind::Detail, kind == Kind::Preview};
+    job.request = {photos_[index], target_, kind == Kind::Detail, kind == Kind::Preview};
     job.cancel = std::make_shared<std::atomic_bool>(false);
     return job;
 }
@@ -134,12 +134,6 @@ void PreviewController::complete(quint64 serial, DecodedImage result) {
     const auto job = running_.take(serial);
     if (stopped_) return;
     if (job.epoch == epoch_ && !job.cancel->load()) {
-        if(result.image.isNull()&&sourceResolver_&&job.generation==generation_&&index_>=0&&photos_[index_].id==job.request.photo.id&&
-           sourceResolver_(photos_[index_]).sources!=job.request.photo.sources){
-            if(job.kind==Kind::Detail&&detailWanted_)detail_=makeJob(index_,Kind::Detail);
-            else foreground_=makeJob(index_,Kind::Preview);
-            pump();return;
-        }
         if (job.kind != Kind::Detail) cache_.insert({job.request.photo.id, job.request.target}, result);
         if (job.generation == generation_ && index_ >= 0 && job.request.photo.id == photos_[index_].id) {
             if (job.kind == Kind::Preview) {

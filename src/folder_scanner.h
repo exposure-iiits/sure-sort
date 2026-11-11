@@ -8,14 +8,14 @@
 namespace photocull {
 using CancelToken = std::shared_ptr<std::atomic_bool>;
 struct ScanResult { Catalog photos; QString error; };
-ScanResult scanFolder(const QString& folder, const CancelToken& cancel = {});
+ScanResult scanFolder(const QString& folder, const CancelToken& cancel = {},const QStringList& excluded = {});
 
 class FolderScanner : public QObject {
     Q_OBJECT
 public:
     explicit FolderScanner(QObject* parent = nullptr);
     ~FolderScanner() override;
-    void start(const QString& folder, quint64 epoch);
+    void start(const QString& folder, quint64 epoch,const QStringList& excluded = {});
     void cancel();
     void shutdown();
 signals:

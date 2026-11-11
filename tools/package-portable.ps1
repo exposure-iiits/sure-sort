@@ -5,7 +5,7 @@ param(
     [string]$CompilerBin = '',
     [string]$QtNotices = '.deps/qt-notices/qtbase-everywhere-src-6.8.3',
     [string]$Destination = 'dist/Sure Sort',
-    [string]$ZipPath = 'dist/Sure-Sort-0.1.3-Windows-x64-Portable.zip'
+    [string]$ZipPath = 'dist/Sure-Sort-0.1.4-Windows-x64-Portable.zip'
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -26,7 +26,10 @@ Extract the entire ZIP to a writable folder, then open Sure Sort.exe.
 Keep the executable, DLLs and plugin folders together. No installation is required.
 Open Folder includes photos in all nested subfolders.
 
-Settings and session history are created in the data folder beside the app.
+App settings and local progress fallback are created in the data folder beside the app.
+Sorting progress is saved as .suresort-progress.sqlite in each original photo folder.
+Original photo files stay unchanged. Green folder outlines show where the selected photo is copied.
+Click a folder or press its key to copy; press again to remove that copy. Ctrl+Z undoes it.
 To share a fresh copy, send the original ZIP, not your used app folder.
 Your photos remain in the locations you choose; photo files are not in this ZIP.
 

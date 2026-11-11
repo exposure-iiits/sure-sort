@@ -21,6 +21,7 @@ class DestinationCounter;
 class ShortcutsDialog;
 class PhotoPopup;
 class Filmstrip;
+class CopyFlight;
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
@@ -37,7 +38,11 @@ private:
     void updateResetButton();
     void chooseFolder();
     void navigate(int index);
+    void toggleDestination(const QString& id);
+    void animateCopy(const QImage& snapshot,const QRect& source,const QString& photoId,const QString& destinationId);
+    void stopCopyAnimation();
     void updateStatus(const DecodedImage* result = nullptr);
+    void syncSavedDestinations();
     void toggleFullscreen();
     void configureDestinations();
     void configureWatermark();
@@ -62,7 +67,8 @@ private:
     QLabel *folderLabel_, *outputLabel_, *filenameLabel_, *positionLabel_, *dimensionsLabel_, *typeLabel_, *zoomLabel_;
     QTimer resizeTimer_;
     QTimer positionTimer_;
-    QLabel* assignedLabel_;
+    QPointer<CopyFlight> copyFlight_;
+    QLabel* progressNotice_;
     QPushButton* queueButton_;
     QPushButton* undoButton_;
     QPushButton* resetButton_;

@@ -142,7 +142,7 @@ SettingsDialog::SettingsDialog(SortingController* sorting, ShortcutManager* shor
     auto* about = new QLabel(
         "<span style='font-size:24px;font-weight:600'>Sure Sort</span><br><br>"
         "A quiet workspace for browsing, editing and sorting photographs.<br><br>"
-        "Copy and move jobs run in the background. Processing status and errors remain visible below the photograph.<br><br>"
+        "Copy jobs run in the background. Processing status and errors remain visible below the photograph.<br><br>"
         "Your edits and sorting progress are saved automatically.<br><br>"
         "<b>Version " SURESORT_VERSION "</b><br><br>"
         "<b>Versioning</b><br>"

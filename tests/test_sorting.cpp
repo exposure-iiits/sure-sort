@@ -32,7 +32,7 @@ QByteArray jpeg(QSize size={80,40}) {
     QImage image(size,QImage::Format_RGB32);image.fill(Qt::red);
     QByteArray bytes;QBuffer buffer(&bytes);buffer.open(QIODevice::WriteOnly);image.save(&buffer,"JPEG");return bytes;
 }
-DestinationConfig config(const QString& root) {return {root,{{"day","Day","1","copy"},{"night","Night","2","copy"}}};}
+DestinationConfig config(const QString& root) {return {root,{{"day","Day","1"},{"night","Night","2"}}};}
 ProcessingTask task(const Photo& photo,const QString& directory) {
     ProcessingTask t;t.id=newId();t.photo=photo;t.categoryId="day";t.categoryName="Day";t.directory=directory;
     t.temporaryPath=QDir(directory).filePath(".photocull-"+t.id+".part");return t;
@@ -130,10 +130,12 @@ private slots:
 #endif
         controller.assign(photo,"day");QTRY_COMPARE(controller.assignment("one").status,QString("completed"));
         const auto modified=controller.assignment("one").outputPath;QVERIFY(write(modified,"user edited photograph"));
-        controller.clearAssignment(photo);QVERIFY(controller.assignment("one").id.isEmpty());
+        controller.clearAssignment(photo);QVERIFY(!controller.assignment("one").id.isEmpty());
         QTRY_VERIFY(!controller.issues().isEmpty());QCOMPARE(read(modified),QByteArray("user edited photograph"));QCOMPARE(read(source),bytes);
+        QTRY_COMPARE(controller.assignment("one").retryOperation,0);
+        QVERIFY(QFile::rename(modified,modified+".external"));controller.retryFailed();QTRY_VERIFY(controller.assignment("one").id.isEmpty());
         controller.undo();QTRY_COMPARE(controller.assignment("one").status,QString("completed"));
-        QVERIFY(controller.assignment("one").outputPath!=modified);QCOMPARE(read(modified),QByteArray("user edited photograph"));
+        QCOMPARE(read(modified+".external"),QByteArray("user edited photograph"));
     }
     void replacedIdenticalOutputPreserved() {
         QTemporaryDir dir;const auto source=dir.filePath("frame.jpg");QVERIFY(write(source,jpeg()));
@@ -247,7 +249,7 @@ private slots:
 #ifdef Q_OS_WIN
             QTRY_VERIFY(!QFileInfo::exists(output+"/Night/IMG_1.jpg"));
 #endif
-            QVERIFY(window.findChild<QLabel*>("assignmentStatus")->text().isEmpty());
+            for(auto* chip:window.findChildren<QPushButton*>())if(chip->property("destinationChip").toBool())QTRY_VERIFY(!chip->property("assigned").toBool());
             if(qEnvironmentVariableIsSet("PHOTOCULL_PHASE2_SCREENSHOT"))QVERIFY(window.grab().save(qEnvironmentVariable("PHOTOCULL_PHASE2_SCREENSHOT")));
             window.shutdown();
         }
@@ -258,7 +260,7 @@ private slots:
         DestinationDialog dialog(config(dir.filePath("out")),&manager,&owner);dialog.show();
         auto* table=dialog.findChild<QTableWidget*>();QVERIFY(table);QCOMPARE(table->rowCount(),2);
         table->item(0,0)->setText("Morning");table->setCurrentCell(1,0);
-        auto* remove=qobject_cast<QPushButton*>(table->cellWidget(1,3));QVERIFY(remove);remove->click();QCOMPARE(table->rowCount(),1);
+        auto* remove=qobject_cast<QPushButton*>(table->cellWidget(1,2));QVERIFY(remove);remove->click();QCOMPARE(table->rowCount(),1);
         auto* add=dialog.findChild<QPushButton*>("addDestination");QVERIFY(add);add->click();QCOMPARE(table->rowCount(),2);
         // Finish the inline name edit before saving; default shortcut 2 remains conflict-free.
         table->setCurrentCell(0,0);QSignalSpy accepted(&dialog,&QDialog::accepted);

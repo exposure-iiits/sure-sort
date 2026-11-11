@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(PhotoCull VERSION 0.1.3 LANGUAGES CXX)
+project(PhotoCull VERSION 0.1.4 LANGUAGES CXX)
 configure_file(src/app_version.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/app_version.h @ONLY)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,15 +13,16 @@ add_library(photocull_core
     src/image_decoder.h src/image_decoder.cpp
     src/image_cache.h src/image_cache.cpp
     src/preview_controller.h src/preview_controller.cpp
-    src/sorting_types.h src/sorting_types.cpp src/source_mover.h src/source_mover.cpp src/output_settings.h src/output_settings.cpp src/exif_metadata.h src/exif_metadata.cpp
+    src/sorting_types.h src/sorting_types.cpp src/output_settings.h src/output_settings.cpp src/exif_metadata.h src/exif_metadata.cpp
     src/session_store.h src/session_store.cpp
     src/processing_pipeline.h src/processing_pipeline.cpp
-    src/sorting_controller.h src/sorting_controller.cpp
+    src/sorting_controller.h src/sorting_controller.cpp src/folder_sessions.cpp
     src/watermark.h src/watermark.cpp src/photo_edits.h src/photo_edits.cpp
     src/photo_information.h src/photo_information.cpp)
 target_include_directories(photocull_core PUBLIC src)
 target_link_libraries(photocull_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql PRIVATE LibRaw::LibRaw)
 add_library(photocull_ui src/photo_viewer.h src/photo_viewer.cpp
+    src/copy_flight.h src/copy_flight.cpp
     src/shortcut_manager.h src/shortcut_manager.cpp src/main_window.h src/main_window.cpp
     src/destination_dialog.h src/destination_dialog.cpp
     src/watermark_dialog.h src/watermark_dialog.cpp src/output_dialog.h src/output_dialog.cpp
@@ -101,6 +102,11 @@ if(BUILD_TESTING)
     photocull_warnings(viewer_tools_tests)
     add_test(NAME viewer_tools_tests COMMAND viewer_tools_tests)
     set_tests_properties(viewer_tools_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 120)
+    add_executable(folder_progress_tests tests/test_folder_progress.cpp)
+    target_link_libraries(folder_progress_tests PRIVATE photocull_ui Qt6::Test LibRaw::LibRaw)
+    photocull_warnings(folder_progress_tests)
+    add_test(NAME folder_progress_tests COMMAND folder_progress_tests)
+    set_tests_properties(folder_progress_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 180)
 endif()
 add_executable(photocull_bench tools/benchmark.cpp)
 target_link_libraries(photocull_bench PRIVATE photocull_core)

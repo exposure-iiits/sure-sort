@@ -11,13 +11,21 @@ namespace photocull {
 class SortingController : public QObject {
     Q_OBJECT
 public:
+    enum class DestinationToggle { None, CopyQueued, RemovalRequested };
     using PrepareFunction = std::function<ProcessingTask(ProcessingTask,const CancelToken&)>;
     explicit SortingController(QObject* parent=nullptr, PrepareFunction prepare=ProcessingPipeline::prepare, int retryDelayMs=1000);
     ~SortingController() override;
     bool initialize(const QString& databasePath);
+    bool openFolderSession(const QString& folder,const std::function<bool()>& chooseLocal={});
+    void registerCatalog(const Catalog&);
+    void removeAssignment(const Photo&,const QString& destinationId);
+    QString progressNotice() const {return folderContext_?folderContext_->progressNotice_:progressNotice_;}
+    QStringList excludedFolders() const;
+    bool hasCompletedCopy(const QString& photoId,const QString& destinationId={}) const;
     bool configure(const DestinationConfig& config);
     bool renameDestination(const QString& id,const QString& name,QString& error);
     QString assign(const Photo& photo, const QString& destinationId);
+    DestinationToggle toggleAssignment(const Photo& photo,const QString& destinationId);
     void clearAssignment(const Photo& photo);
     void undo();
     void retryFailed();
@@ -26,28 +34,26 @@ public:
     void shutdown();
     bool setWatermark(const WatermarkSnapshot& snapshot);
     bool setOutput(const OutputSettings&);
-    OutputSettings output() const {return output_;}
+    OutputSettings output() const {return folderContext_?folderContext_->output():output_;}
     QString processingStatus() const;
-    const WatermarkSnapshot& watermark() const {return watermark_;}
-    PhotoEdits edits(const QString& photoId) const {return edits_.value(photoId);}
+    const WatermarkSnapshot& watermark() const {return folderContext_?folderContext_->watermark():watermark_;}
+    PhotoEdits edits(const QString& photoId) const {return folderContext_?folderContext_->edits(photoId):edits_.value(photoId);}
     bool setEdits(const Photo& photo,const PhotoEdits& edits);
-    QJsonArray editBindings() const {return editBindings_;}
+    QJsonArray editBindings() const {return folderContext_?folderContext_->editBindings():editBindings_;}
     bool saveEditBindings(const QJsonArray& bindings);
     QJsonObject uiPreferences() const {return uiPreferences_;}
     bool saveUiPreferences(const QJsonObject& preferences);
     int editingStep() const {return qBound(1,uiPreferences_.value("editingStep").toInt(5),20);}
-    bool ready() const { return ready_; }
-    const DestinationConfig& config() const { return config_; }
+    bool ready() const { return !folderUnavailable_&&(folderContext_?folderContext_->ready():ready_); }
+    const DestinationConfig& config() const { return folderContext_?folderContext_->config():config_; }
     ProcessingTask assignment(const QString& photoId,const QString& categoryId={}) const;
     QVector<ProcessingTask> assignments(const QString& photoId) const;
-    Photo resolvedPhoto(const Photo&) const;
-    Catalog mergeMovedPhotos(Catalog,const QString& folder) const;
-    bool canUndo() const {return !undo_.isEmpty();}
+    bool canUndo() const;
     int remaining() const;
     int failed() const;
     QStringList issues() const;
     QString restoredFolder() const { return restoredFolder_; }
-    QString restoredPhoto() const { return restoredPhoto_; }
+    QString restoredPhoto() const { return folderContext_?folderContext_->restoredPhoto():restoredPhoto_; }
 signals:
     void configChanged();
     void assignmentChanged(QString photoId);
@@ -57,13 +63,14 @@ signals:
     void problem(QString message);
     void watermarkChanged(photocull::WatermarkSnapshot snapshot);
     void editsChanged(QString photoId,photocull::PhotoEdits edits);
-    void sourcesChanged(QString photoId);
 private:
-    enum class Operation { Prepare, Publish, Recover, Cleanup, MoveOriginals };
+    enum class Operation { Prepare, Publish, Recover, Cleanup };
     struct Work { ProcessingTask task; Operation operation; };
     ProcessingTask makeTask(const Photo&,const QString& categoryId,const QString& categoryName,const QString& directory);
     bool change(const Photo&,std::optional<ProcessingTask> task,bool pushUndo,bool popUndo,const QString& categoryId={});
-    void retire(const QString& id,bool preserveOutput=false,bool restoreSources=true);
+    void retire(const QString& id,bool preserveOutput=false);
+    void finishRemoval(ProcessingTask&);
+    void saveSessionIndex();
     bool persist(ProcessingTask& task);
     ProcessingTask cancellationCleanup(const ProcessingTask&) const;
     void pump();
@@ -83,7 +90,7 @@ private:
     QString databasePath_;
     QVector<UndoEntry> undo_;
     QString restoredFolder_,restoredPhoto_;
-    QThreadPool pool_;
+    std::shared_ptr<QThreadPool> pool_;
     PrepareFunction prepare_;
     std::deque<Work> work_;
     std::optional<Work> active_;
@@ -100,5 +107,9 @@ private:
     QTimer retryTimer_;
     QHash<QString,qint64> retryDue_;
     int retryDelayMs_;
+    QHash<QString,std::shared_ptr<SortingController>> folderContexts_;
+    SortingController* folderContext_=nullptr;
+    QString progressNotice_,sourceRoot_;
+    bool folderUnavailable_=false;
 };
 }

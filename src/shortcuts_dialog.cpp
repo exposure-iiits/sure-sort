@@ -123,7 +123,7 @@ void ShortcutsDialog::populate(){
         {"open","Open folder"},{"settings","Settings"},{"fit","Fit photo"},{"actual","Toggle 100% / Fit"},
         {"zoomIn","Zoom in"},{"zoomOut","Zoom out"},{"fullscreen","Toggle fullscreen"},
         {"escape","Cancel crop / leave fullscreen"},{"skip","Skip photo"},
-        {"undoAssignment","Undo last copy / move"},{"clearAssignment","Clear latest placement"},{"confirmCrop","Confirm crop"}
+        {"undoAssignment","Undo last copy or removal"},{"clearAssignment","Clear latest placement"},{"confirmCrop","Confirm crop"}
     };
     auto add=[this](const QString& title,const QString& primary,const QString& alternate,const QString& kind,const QString& action){
         const int row=table_->rowCount();table_->insertRow(row);
@@ -141,7 +141,7 @@ void ShortcutsDialog::populate(){
         add(names.value(action),nativeKey(keys.value(0)),nativeKey(keys.value(1)),"app",action);
     }
     if(category==Sorting)for(const auto& folder:sorting_->config().folders)
-        add((folder.action=="move"?"Move to ":"Copy to ")+folder.name,nativeKey(folder.shortcut),nativeKey(folder.alternateShortcut),"folder",folder.id);
+        add(QString("Copy / remove: ")+folder.name,nativeKey(folder.shortcut),nativeKey(folder.alternateShortcut),"folder",folder.id);
     if(category==Editing)for(const auto& action:ShortcutManager::editActions())for(const auto& value:shortcuts_->editBindings()){
         const auto row=value.toObject();if(row["action"]!=action.first)continue;
         add(action.second,nativeKey(row["trigger"].toString(),row["hold"].toString()),nativeKey(row["alternate"].toString(),row["hold"].toString()),"edit",action.first);

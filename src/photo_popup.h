@@ -38,7 +38,6 @@ signals:
     void dismissed();
 protected:
     void paintEvent(QPaintEvent*) override;
-    void keyPressEvent(QKeyEvent*) override;
 private:
     void loadInformation();
     void showFields(const PhotoInformation& fields);

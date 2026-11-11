@@ -7,7 +7,7 @@ inline QString photoUiStyle() {
         QWidget { background: #1d1d1f; color: #d4d4d8; font-family: 'Segoe UI'; font-size: 13px; }
         QLabel { background: transparent; }
         QLabel#AppTitle { color: #e4e4e7; font-weight: 600; letter-spacing: .5px; }
-        QLabel#muted, QLabel#outputFolder, QLabel#assignmentStatus { color: #99999f; }
+        QLabel#muted, QLabel#outputFolder { color: #99999f; }
         QWidget#toolbar, QWidget#photoFooter, QWidget#destinationBar, QWidget#cropBar { background: #1d1d1f; }
         QPushButton { background: #29292d; border: 1px solid #3b3b41; border-radius: 5px; padding: 6px 12px; }
         QPushButton:hover { background: #333338; border-color: #515159; }
@@ -18,14 +18,13 @@ inline QString photoUiStyle() {
         QPushButton[toolbarButton="true"]:hover { background: #2d2d31; }
         QPushButton[toolbarButton="true"]:checked { background: #38383d; }
         QPushButton[destinationChip="true"] { border: 1px solid #44444b; border-radius: 10px; padding: 4px 12px; }
-        QPushButton[destinationChip="true"][destinationAction="copy"] { background: #25394a; border-color: #425e76; color: #c4dcf1; }
-        QPushButton[destinationChip="true"][destinationAction="copy"]:hover { background: #304b62; border-color: #7598b8; }
-        QPushButton[destinationChip="true"][destinationAction="move"] { background: #393047; border-color: #5d4e73; color: #ddcdef; }
-        QPushButton[destinationChip="true"][destinationAction="move"]:hover { background: #4a3b5f; border-color: #927bad; }
-        QPushButton[destinationChip="true"][assigned="true"] { background: #2d4560; border-color: #709bc8; }
-        QWidget#quickDestinationEditor { background: #393047; border: 1px solid #927bad; border-radius: 10px; }
-        QWidget#quickDestinationEditor QLabel { border: 0; color: #ddcdef; }
-        QLineEdit#quickFolderName { background: transparent; border: 0; padding: 3px; color: #f0e6fa; }
+        QPushButton[destinationChip="true"] { background: #25394a; border-color: #425e76; color: #c4dcf1; }
+        QPushButton[destinationChip="true"]:hover { background: #304b62; border-color: #7598b8; }
+        QPushButton[destinationChip="true"][assigned="true"] { background: #25394a; border: 2px solid #7bd99b; }
+        QPushButton[destinationChip="true"][assigned="true"]:hover { background: #304b62; border: 2px solid #7bd99b; }
+        QWidget#quickDestinationEditor { background: #25394a; border: 1px solid #7598b8; border-radius: 10px; }
+        QWidget#quickDestinationEditor QLabel { border: 0; color: #c4dcf1; }
+        QLineEdit#quickFolderName { background: transparent; border: 0; padding: 3px; color: #e2effa; }
         QPushButton#undoAction { padding: 4px 12px; border-radius: 8px; }
         QPushButton#applyCrop { background: #2f5a3c; color: #d4f5dc; border-color: #416d4e; }
         QDialog { background: #1d1d1f; }

@@ -13,7 +13,6 @@ public:
     explicit PreviewController(QObject* parent = nullptr, Decoder decoder = ImageDecoder::decode);
     ~PreviewController() override;
     void setCatalog(Catalog photos);
-    void setSourceResolver(std::function<Photo(const Photo&)> resolver){sourceResolver_=std::move(resolver);}
     void select(int index, QSize target);
     void requestDetail(bool enabled);
     void clear();
@@ -52,7 +51,6 @@ private:
     bool detailWanted_ = false, previewLoaded_ = false, stopped_ = false;
     QThreadPool pool_;
     Decoder decoder_;
-    std::function<Photo(const Photo&)> sourceResolver_;
     ImageCache cache_;
     std::optional<Job> foreground_, detail_;
     std::deque<Job> prefetch_;

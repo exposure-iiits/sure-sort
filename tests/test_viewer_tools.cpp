@@ -35,10 +35,10 @@ QString field(const PhotoInformation& fields,const QString& name){for(const auto
 class ViewerToolsTest:public QObject {
     Q_OBJECT
 private slots:
-    void completedThumbnailsTrackCopyMoveUndoAndRestart(){
+    void completedThumbnailsTrackCopyUndoAndRestart(){
         QTemporaryDir dir;const auto input=dir.filePath("input"),output=dir.filePath("out"),database=dir.filePath("session.sqlite");QVERIFY(QDir().mkpath(input));
         const auto source=input+"/photo_01.jpg";QVERIFY(image().save(source));QVERIFY(image().save(input+"/photo_02.jpg"));
-        QString error;{SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig({output,{{"a","A","1","copy"},{"b","B","2","copy"},{"m","Moved","3","move"}}},error));}
+        QString error;{SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig({output,{{"a","A","1"},{"b","B","2"},{"m","Third","3"}}},error));}
         auto green=[](Filmstrip* strip){const auto pixels=strip->viewport()->grab().toImage();const auto ratio=pixels.devicePixelRatio();const auto color=pixels.pixelColor(qRound(48*ratio),qRound(8*ratio));return color.green()>color.red()+25&&color.green()>color.blue()+12;};
         {
             MainWindow window(12*1024*1024,nullptr,database);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();auto* strip=window.findChild<Filmstrip*>();QTRY_VERIFY(viewer->hasPhoto());QVERIFY(!green(strip));
@@ -51,8 +51,7 @@ private slots:
         {
             MainWindow window(12*1024*1024,nullptr,database);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();auto* strip=window.findChild<Filmstrip*>();QTRY_VERIFY(viewer->hasPhoto());QTRY_VERIFY(green(strip));
             window.activateWindow();viewer->setFocus();QTest::keyClick(viewer,Qt::Key_Backspace);QTRY_VERIFY(!QFileInfo::exists(output+"/A/photo_01.jpg"));QTRY_VERIFY(!green(strip));
-            for(auto* button:window.findChildren<QPushButton*>())if(button->property("destinationChip").toBool()&&button->property("destinationId").toString()=="m"){button->click();break;}
-            QTRY_VERIFY(!QFileInfo::exists(source));QTRY_VERIFY(green(strip));window.findChild<QPushButton*>("undoAction")->click();QTRY_VERIFY(QFileInfo::exists(source));QTRY_VERIFY(!green(strip));window.shutdown();
+            QVERIFY(QFileInfo::exists(source));window.shutdown();
         }
     }
     void metadataAndMissingExif(){
@@ -83,13 +82,13 @@ private slots:
     void crowdedFooterPopupsFilmstripAndFullscreen(){
         QTemporaryDir dir;const auto input=dir.filePath("input"),database=dir.filePath("session.sqlite");QVERIFY(QDir().mkpath(input));
         for(int i=0;i<24;++i)QVERIFY(image(QColor::fromHsv(i*15,100,180)).save(input+QString("/photo_%1_with_a_long_file_name.jpg").arg(i,2,10,QChar('0'))));
-        DestinationConfig config;config.outputRoot=dir.filePath("out");for(int i=0;i<30;++i)config.folders.append({QString::number(i),QString("Folder %1 with a very long descriptive name").arg(i),i==0?"1":"","copy"});
+        DestinationConfig config;config.outputRoot=dir.filePath("out");for(int i=0;i<30;++i)config.folders.append({QString::number(i),QString("Folder %1 with a very long descriptive name").arg(i),i==0?"1":""});
         QString error;{SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config,error));}
         {
             MainWindow window(12*1024*1024,nullptr,database);window.resize(640,480);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();QTRY_VERIFY(viewer->hasPhoto());
             auto* strip=window.findChild<Filmstrip*>();QVERIFY(strip->isVisible());QCOMPARE(strip->currentIndex(),0);
             auto* scroll=window.findChild<QScrollArea*>("destinationScroll");QTRY_VERIFY(scroll->horizontalScrollBar()->maximum()>0);
-            auto* footer=window.findChild<QWidget*>("photoFooter");QVERIFY(footer->geometry().right()<window.width());QVERIFY(footer->height()<=90);
+            auto* footer=window.findChild<QWidget*>("photoFooter");QVERIFY(footer->geometry().right()<window.width());QVERIFY(footer->height()<=125);
             auto* add=window.findChild<QPushButton*>("quickAddDestination");scroll->ensureWidgetVisible(add);QTest::qWait(30);QVERIFY(scroll->viewport()->rect().contains(add->mapTo(scroll->viewport(),add->rect().center())));
             scroll->horizontalScrollBar()->setValue(0);capture("crowded-footer-640",&window);
             QTest::mouseClick(strip->viewport(),Qt::LeftButton,Qt::NoModifier,QPoint(40,144));QCOMPARE(strip->currentIndex(),1);QTRY_VERIFY(viewer->hasPhoto());
@@ -98,7 +97,7 @@ private slots:
             QTRY_VERIFY(infoName().contains("photo_01"));QTest::keyClick(viewer,Qt::Key_Right);QTRY_VERIFY(infoName().contains("photo_02"));
             QVERIFY(viewer->rect().contains(window.findChild<QScrollArea*>("informationTools")->geometry()));capture("photo-information",&window);
             window.findChild<QPushButton*>("histogramButton")->click();QCOMPARE(popup->mode(),PhotoPopup::Histogram);QVERIFY(popup->isVisible());capture("histogram",&window);
-            QTest::keyClick(viewer,Qt::Key_Escape);QVERIFY(!popup->isVisible());
+            QTest::mouseClick(viewer,Qt::LeftButton,Qt::NoModifier,viewer->rect().center());QVERIFY(popup->isVisible());QTest::keyClick(viewer,Qt::Key_Escape);QVERIFY(popup->isVisible());popup->findChild<QPushButton*>("closePhotoPopup")->click();QVERIFY(!popup->isVisible());
             window.findChild<QPushButton*>("fullscreenButton")->click();QVERIFY(window.isFullScreen());QVERIFY(footer->isVisible());QVERIFY(strip->isVisible());QVERIFY(!window.findChild<QWidget*>("photoStatusRow")->isVisible());capture("fullscreen-folders-thumbnails",&window);
             QTest::keyClick(viewer,Qt::Key_Escape);QVERIFY(!window.isFullScreen());QVERIFY(footer->isVisible());QVERIFY(strip->isVisible());
             window.findChild<QPushButton*>("settingsButton")->click();auto* settings=window.findChild<SettingsDialog*>();settings->showPage(SettingsDialog::Viewing);QTRY_COMPARE(QApplication::activeModalWidget(),settings);

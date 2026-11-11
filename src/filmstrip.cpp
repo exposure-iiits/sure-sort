@@ -60,7 +60,7 @@ void Filmstrip::pump(){
     if(current_>=first&&current_<=last&&!cache_.contains(photos_[current_].id))next=current_;
     else for(int i=first;i<=last;++i)if(!cache_.contains(photos_[i].id)){next=i;break;}
     if(next<0)return;
-    auto photo=photos_[next];const auto id=photo.id;if(resolver_)photo=resolver_(photo);
+    auto photo=photos_[next];const auto id=photo.id;
     cancel_=std::make_shared<std::atomic_bool>(false);const auto cancel=cancel_;const auto generation=generation_;active_=true;
     pool_.start(QRunnable::create([this,photo,id,cancel,generation]{
         auto result=ImageDecoder::decode({photo,{192,128},false,false},cancel);

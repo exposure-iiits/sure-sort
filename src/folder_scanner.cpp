@@ -37,7 +37,7 @@ QString Photo::typeLabel() const {
     });
     return types.join('+');
 }
-ScanResult scanFolder(const QString& folder, const CancelToken& cancel) {
+ScanResult scanFolder(const QString& folder, const CancelToken& cancel,const QStringList& excluded) {
     ScanResult result;
     const QFileInfo info(folder);
     if (!info.exists() || !info.isDir() || !info.isReadable()) {
@@ -51,6 +51,8 @@ ScanResult scanFolder(const QString& folder, const CancelToken& cancel) {
         if (cancel && cancel->load()) return {};
         it.next();
         const auto file = it.fileInfo();
+        bool skip=false;for(const auto& path:excluded){const auto relative=QDir(path).relativeFilePath(file.absoluteFilePath());if(!QDir::isAbsolutePath(relative)&&relative!=".."&&!relative.startsWith("../")){skip=true;break;}}
+        if(skip)continue;
         const auto ext = file.suffix().toLower();
         if (!isSupportedExtension(ext)) continue;
         // Pair companions only within their own directory; PNGs remain separate.
@@ -90,12 +92,12 @@ void FolderScanner::cancel() {
     pool_.clear();
 }
 void FolderScanner::shutdown() { cancel(); pool_.waitForDone(); }
-void FolderScanner::start(const QString& folder, quint64 epoch) {
+void FolderScanner::start(const QString& folder, quint64 epoch,const QStringList& excluded) {
     cancel();
     cancel_ = std::make_shared<std::atomic_bool>(false);
     auto token = cancel_;
-    pool_.start(QRunnable::create([this, folder, epoch, token] {
-        auto result = scanFolder(folder, token);
+    pool_.start(QRunnable::create([this, folder, epoch, token,excluded] {
+        auto result = scanFolder(folder, token,excluded);
         if (token->load()) return;
         QMetaObject::invokeMethod(this, [this, epoch, token, result = std::move(result)]() mutable {
             if (!token->load()) emit finished(epoch, std::move(result.photos), std::move(result.error));

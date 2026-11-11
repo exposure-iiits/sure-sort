@@ -14,7 +14,7 @@ ctest --preset windows-release
 & .\build\windows-release\PhotoCull.exe 'D:\Photos\TestCollection' --cache-mb 256
 ```
 
-Use disposable copies when exercising filesystem failure cases. Originals remain read-only; assignment writes to configured destinations and the SQLite session journal.
+Use disposable copies when exercising filesystem failure cases. Original photo bytes remain read-only; assignments write outputs and a per-folder .suresort-progress.sqlite progress database.
 
 For a separate Debug build, use a Qt kit containing debug libraries:
 
@@ -41,9 +41,8 @@ Open the root `CMakeLists.txt` in a CMake-aware IDE and select the same toolchai
 | `src/output_settings.*`, `src/output_dialog.*` | Validated output preferences and compact automatic settings UI |
 | `src/exif_metadata.*` | Bounded standard EXIF parsing/rebuild and streaming metadata insertion |
 | `tests/test_output.cpp` | Output quality/resolution/metadata, snapshots, restart and 510-file queue |
-| `src/source_mover.*` | Journaled original-byte relocation, reverse transfers and file identity/backup safety |
 | `src/ui_icons.h` | Lightweight painted toolbar icons |
-| `tests/test_workflow.cpp` | Copy/Move/Undo, recovery, crop ratio, shortcuts and refreshed UI |
+| `tests/test_workflow.cpp` | Copy/removal/Undo, recovery, crop ratio, shortcuts and refreshed UI |
 | `src/session_store.*` | SQLite schema, lock, task/assignment journal and undo history |
 | `src/sorting_controller.*` | Auto-advance, serial processing queue, retry/cancel, undo and recovery |
 | `src/processing_pipeline.*` | Full-sensor development, copies, temporary encoding, atomic publication and verified cleanup |
@@ -54,7 +53,7 @@ Open the root `CMakeLists.txt` in a CMake-aware IDE and select the same toolchai
 | `src/main_window.*`, `src/main.cpp` | Window composition, application startup and CLI options |
 | `tests/test_photocull.cpp`, `tests/raw_fixture.h` | Qt Test coverage and generated DNG fixtures |
 | `tests/test_sorting.cpp` | Sorting, conversion, safety, restart and keyboard/dialog integration |
-| `tests/test_watermark.cpp` | Geometry, live controls/transforms, full-resolution output, snapshots, batches and schema migration |
+| `tests/test_watermark.cpp` | Geometry, live controls/transforms, full-resolution output, snapshots, batches and copy-only persistence |
 | `tests/test_editing.cpp` | Tone, keyboard/crop interactions, preview/refinement, persistence, output refresh and recovery |
 | `tools/benchmark.cpp` | Repeatable release scan/decode/cache measurements |
 | `tools/deploy-windows.ps1` | Assemble executable, dependency DLLs, Qt plugins and included notices |
@@ -72,12 +71,12 @@ Open the root `CMakeLists.txt` in a CMake-aware IDE and select the same toolchai
 - Destination keys may use digits; validate conflicts and ignore assignment auto-repeat. Do not copy GPL reference application code.
 - Keep processing, preview decoding and live tone rendering in separate pools. Only the processing pipeline develops full sensor data; unedited JPEG/PNG with watermark disabled and default output preferences remain byte copies.
 - Share watermark geometry/composition between viewer and output. Never bake overlays into cached previews. Capture both settings and PNG bytes/version at assignment; retry/undo must preserve that snapshot.
-- Keep decoded PNG assets immutable and shared; release historical decoded images. Persist asset bytes once per SHA-256 version and bound PNG import size. Preserve schema migration and fail safely on damaged saved snapshots.
+- Keep decoded PNG assets immutable and shared; release historical decoded images. Persist asset bytes once per SHA-256 version and bound PNG import size. Use the fresh copy-only schema and fail safely on damaged saved snapshots.
 - Reuse the shared tone/geometry helpers for preview and output. Keep crop in original normalized coordinates; apply watermark after rotation/crop. Capture edits in each task and preserve original preview cache entries.
 - Bound live tone work and prefer the latest request; refine large images after idle without blocking navigation. Clear refinement timers/generations on photo change and cancel/drain on destruction.
 - Refresh sorted outputs only after rendering/journaling a replacement. Preserve predecessor ownership, cancellation/retry and prepared/renamed recovery. Never overwrite an externally modified image.
 - Commit prepared metadata before publication. Never overwrite an output path or delete an output without proving ownership/content under the Windows handle lock. Persist undo/reassignment before starting new work.
-- Qt SQL/QSQLITE are required. Tests must use temporary session paths; use `--session-db` for isolated app launches rather than a developer's normal database.
+- Folder sessions share a single processing pool. App viewing preferences and the recent-folder index stay in the profile; relative source identities and all sorting state stay in each original folder’s progress file. Qt SQL/QSQLITE are required. Tests must use temporary session paths; use `--session-db` for isolated app launches rather than a developer's normal database.
 
 See [DESIGN](DESIGN.md) for the reasoning and [TESTING](TESTING.md) for checks affected by each area.
 

@@ -1,10 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 — 11 November 2026
+
+- Footer folders now toggle copies with matching primary/alternate shortcuts and clicks. Green outlines identify the current photo’s destinations; removals keep the current photo selected.
+- Replaced Manage copies and the extra status row with the existing folder controls.
+- Added a full-photo genie animation that bends and narrows into the folder without delaying navigation or saving.
+
+### Copy-only folder sessions
+
+- Removed Move, original relocation, action controls, transfer journals and earlier-session compatibility.
+- Per-original-folder progress database restores full sorting setup, edits, copies, Undo and last photo; read-only folders use a visible local fallback.
+- Added verified per-destination removal. Folder sessions share one processing worker.
+- Unified destination styling and kept information/histogram open until explicitly closed.
+- Added folder-progress, removal and panel regression coverage.
+
+## Experimental macOS work
 
 - Prepare an experimental macOS app bundle, DMG packaging script and manually
   triggered Apple Silicon GitHub Actions build. Mac builds remain unverified;
-  Move and automatic output removal still depend on Windows file locking.
+  Automatic output removal still depends on Windows file locking.
 
 ## 0.1.3 — 10 November 2026 (local test build)
 

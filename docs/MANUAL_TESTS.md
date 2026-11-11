@@ -60,11 +60,18 @@ These are manual release gates, **not completed verification claims**. Generated
 - [ ] Upgrade a backed-up Phase 4 session to schema 4, retry old jobs and confirm settings/history. Complete Windows 10/MSVC/clean-machine and mixed-DPI checks. Real camera samples were unavailable during automated Phase 5 verification.
 
 
-## Sure Sort Copy/Move and interface
 
-- [ ] Set different folder rows to Copy and Move. Copy a photo into two folders by returning to it; keep both copies. Move an edited/watermarked RAW+JPEG pair and verify the processed JPEG plus exact source files in Originals.
 - [ ] Undo copies and chained moves rapidly, after restart and during processing. Verify original bytes/prior paths; preserve occupied or externally changed files and finish automatically when conflicts are resolved during retry, or through restart restoration recovery. Interrupt forward and reverse transfers on disposable shoots, including cross-volume/removable drives.
 - [ ] Browse/reopen moved photos, zoom, edit and make further copies; inspect partially moved pairs during recovery. Compare timestamps and confirm there are no lost originals.
 - [ ] Verify five-unit editing steps (0.5 EV exposure), Original crop ratio through rotation/photo changes, Z 100%/Fit, fullscreen and settings icons, Ctrl+Z with no navbar Undo button and the complete current-shortcuts reference. Inspect small/high-DPI windows, menus, controls and keyboard focus.
 
-- [ ] Inspect Settings → Sorting destinations at 100%/150%/200% DPI: readable Copy/Move and shortcut controls, per-row bins, right-hand plus, no Up/Down/global Remove. Confirm two compact footer rows, horizontally scrolling folders and no Retry/Cancel controls; unresolved automatic retries show an error with clickable status details.
+
+## Copy-only folder sessions
+
+- [ ] Copy using primary/alternate shortcuts and folder clicks. The assigned photo animates toward the chosen folder, navigation advances immediately, and repeated rapid sorts leave at most one animation. Removal keeps the current photo selected.
+
+- [ ] Copy to two destinations, reopen the original folder, and verify both names, green outline, counts, settings and last photo. Repeat with a fresh app profile.
+- [ ] Press a green folder’s shortcut or click it to remove one copy, then the final copy; verify green folder/thumbnail outlines, counts and Undo. Modify or lock an output and verify removal preserves it with a visible error.
+- [ ] Switch input folders with queued jobs; verify the outputs and saved progress stay attached to the right folder and only one job processes at a time.
+- [ ] Test read-only progress fallback, later synchronization, and divergent local/folder progress. Preserve both sessions when choosing.
+- [ ] Keep info/histogram open while clicking, navigating, editing, changing folders and fullscreen. Only × or the active toolbar button closes it.

@@ -1,5 +1,5 @@
 param(
-    [string]$AppSource = 'dist/Sure Sort 0.1.3',
+    [string]$AppSource = 'dist/Sure Sort 0.1.4',
     [string]$Compiler = '.deps/inno-6.7.4/ISCC.exe'
 )
 $ErrorActionPreference = 'Stop'

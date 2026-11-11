@@ -12,9 +12,7 @@
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
-    QCoreApplication::setApplicationName("PhotoCull");
     QCoreApplication::setOrganizationName("SureSort");
-    const auto legacySession=QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).filePath("session.sqlite");
     QCoreApplication::setApplicationName("Sure Sort");QGuiApplication::setApplicationDisplayName("Sure Sort");
     QCoreApplication::setApplicationVersion(SURESORT_VERSION);
     // A transparent caption icon prevents Windows falling back to the EXE
@@ -28,8 +26,8 @@ int main(int argc, char** argv) {
     parser.addPositionalArgument("folder", "Optional local photo folder");
     parser.addOption({"cache-mb", "Preview cache budget in MiB (default 256)", "MiB", "256"});
     parser.addOption({"smoke-test-ms", "Close automatically after N ms for launch verification", "ms"});
-    parser.addOption({"session-db", "SQLite session path (default: application data directory)", "path"});
-    parser.addOption({"portable", "Keep settings and session in the application's data folder"});
+    parser.addOption({"session-db", "SQLite app profile path (folder progress is saved beside photos)", "path"});
+    parser.addOption({"portable", "Keep app settings and local progress fallback in the application's data folder"});
     parser.process(app);
     bool valid = false;
     const qint64 mb = parser.value("cache-mb").toLongLong(&valid);
@@ -37,7 +35,7 @@ int main(int argc, char** argv) {
     const QDir appFolder(QCoreApplication::applicationDirPath());
     const bool portable = parser.isSet("portable") || QFileInfo::exists(appFolder.filePath("portable.ini"));
     const auto session = parser.isSet("session-db") ? parser.value("session-db")
-        : portable ? appFolder.filePath("data/session.sqlite") : legacySession;
+        : portable ? appFolder.filePath("data/profile.sqlite") : QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).filePath("profile.sqlite");
     photocull::MainWindow window(mb * 1024 * 1024,nullptr,session);
     window.show();
     if (!parser.positionalArguments().isEmpty()) window.openFolder(parser.positionalArguments().first());

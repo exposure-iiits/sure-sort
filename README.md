@@ -1,22 +1,22 @@
 # Sure Sort
 
-A native, offline C++17/Qt Widgets viewer and keyboard sorting tool for Windows 10/11 x64. Sure Sort combines photo browsing, editing, watermarking and automatic keyboard sorting with per-folder Copy/Move actions. Browsing, keyboard sorting, automatic RAW development and watermarking remain intact. Copy preserves originals; Move relocates them safely with Ctrl+Z restoration. Sorting automatically saves the final image without an Export or Apply action.
+A native, offline C++17/Qt Widgets viewer and keyboard sorting tool for Windows 10/11 x64. Sure Sort combines photo browsing, editing, watermarking and automatic keyboard sorting with copy-only folder sorting. Browsing, keyboard sorting, automatic RAW development and watermarking remain intact. Original photos stay unchanged. Sorting automatically saves the final image without an Export or Apply action.
 
-Current version: **0.1.3**, shown in **Settings → About**. See [versioning](docs/VERSIONING.md).
+Current version: **0.1.4**, shown in **Settings → About**. See [versioning](docs/VERSIONING.md).
 
 For MacBook packaging, see the [experimental macOS cloud build](docs/MACOS.md).
 It prepares a macOS `.dmg` on a Mac/GitHub runner; no Mac installer is included
-in the Windows distribution. Move and verified output removal need a macOS port.
+in the Windows distribution. Verified output removal needs a macOS port.
 
 For the GitHub source package and ongoing development, start with [START_HERE.md](START_HERE.md). Prebuilt Windows files are distributed separately from the source.
 
-See [0.1.3 changes and controls](docs/RELEASE-0.1.3.md). The portable package is in `dist/Sure-Sort-0.1.3-Windows-x64-Portable.zip`.
+See [0.1.4 changes and controls](docs/RELEASE-0.1.4.md). The portable package is in `dist/Sure-Sort-0.1.4-Windows-x64-Genie.zip`.
 
 ## Run the local verification build
 
-Portable builds include a `portable.ini` marker and keep settings/session history in `data/` beside the executable. Extract the complete ZIP to a writable folder and launch **Sure Sort.exe**. Share the original ZIP so your personal session history is excluded. `--portable` also enables this mode; an explicit `--session-db` takes precedence. The executable includes the minimal folder/checkmark app logo; editable artwork is in `assets/suresort.svg`.
+Portable builds include a `portable.ini` marker and keep the app profile and local progress fallback in `data/` beside the executable. Folder progress stays beside the original photos. Extract the complete ZIP to a writable folder and launch **Sure Sort.exe**. Share the original ZIP so your personal session history is excluded. `--portable` also enables this mode; an explicit `--session-db` takes precedence. The executable includes the minimal folder/checkmark app logo; editable artwork is in `assets/suresort.svg`.
 
-Open `dist\Sure Sort 0.1.3\Sure Sort.exe`. Keep its adjacent DLLs and plugin folders together. The portable package uses Qt 6.8.3, MinGW GCC 13.1 and dynamic LibRaw 0.21.4. It is an unsigned local verification build. MSVC and Windows 10 have not been tested here. Generated files in `build/`, `.deps/`, and `dist/` are ignored by Git.
+Open `dist\Sure Sort 0.1.4 Genie\Sure Sort.exe`. Keep its adjacent DLLs and plugin folders together. The portable package uses Qt 6.8.3, MinGW GCC 13.1 and dynamic LibRaw 0.21.4. It is an unsigned local verification build. MSVC and Windows 10 have not been tested here. Generated files in `build/`, `.deps/`, and `dist/` are ignored by Git.
 
 ```powershell
 & '.\dist\Sure Sort\Sure Sort.exe'
@@ -30,9 +30,9 @@ Choose **Open Folder** or pass a folder on the command line. Scanning includes t
 | Right / D, Left / A | Next, previous |
 | Home, End | First, last |
 | Ctrl+O | Open folder |
-| Configured digits / custom keys | Assign destination, queue processing, immediately advance |
+| Configured digits / custom keys | Toggle the folder’s copy; copying advances, removal stays on the photo |
 | Space | Skip without assignment |
-| Ctrl+Z | Undo the last Copy/Move or clear, restore originals when moved |
+| Ctrl+Z | Undo the last copy or removal |
 | Backspace | Clear the latest folder placement |
 | F | Fit |
 | Z | Toggle 100% (one image pixel per device pixel) and Fit |
@@ -46,10 +46,10 @@ Digits 0–9 can be mapped to destinations. Sorting, skip, undo and clear ignore
 ## Sort and save automatically
 
 1. Open the input folder, then click the **settings gear → Sorting**, or press **Ctrl+,**.
-2. Select an output directory. Use the right-hand **+** to add subfolders, choose Copy or Move, and edit names/shortcuts, then click **Save folders**. Each row has a **bin icon** to remove that mapping. Duplicate names/keys and conflicts with viewer shortcuts are rejected. Blank shortcuts leave additional folders accessible by clicking their buttons.
+2. Select an output directory. Use the right-hand **+** to add subfolders and edit names/shortcuts, then click **Save folders**. Each row has a **bin icon** to remove that mapping. Duplicate names/keys and conflicts with viewer shortcuts are rejected. Blank shortcuts leave additional folders accessible by clicking their buttons.
 3. Save the configuration, then press a folder key or click its button below the photo. The next photo appears immediately while processing runs in the background.
 
-New folders default to **Move** and the next available number shortcut. The footer's **+** adds a name field directly beside the folder buttons; type the name and press Enter or leave the field to save, or Esc to cancel. If no output directory is set, Plus opens Settings → Sorting so you can choose and save it. Rename also happens inline. Settings can change each folder to Copy or customize its shortcuts.
+New folders use the next available number shortcut. The footer's **+** adds a name field directly beside the folder buttons; type the name and press Enter or leave the field to save, or Esc to cancel. If no output directory is set, Plus opens Settings → Sorting so you can choose and save it. Rename also happens inline. Settings can customize each folder’s shortcuts.
 
 With no edits, watermarking disabled and default output settings, JPEG/PNG are copied byte-for-byte, including metadata. Otherwise the worker decodes the original, applies tone → rotation/crop → watermark → configured resize → encoding. RAW uses full-sensor development, camera white balance (automatic fallback), AHD where appropriate, an sRGB matrix and transfer curve, and JPEG encoding. A RAW+JPEG pair produces one JPEG from the RAW; a bad RAW fails rather than exporting its companion/embedded preview. Orientation is baked into processed pixels. Camera previews can differ from developed RAW in color, tone and crop.
 
@@ -61,15 +61,19 @@ The compact footer groups folder buttons with processing counts, then photo/assi
 
 Undo/clear/reassignment cancel stale work and remove only verified, unchanged application outputs. Modified, replaced or locked files are preserved with a notice. Windows verifies/deletes using the same handle while denying concurrent writes/deletion. Other platforms conservatively preserve outputs on undo; Linux is unverified. Configuration changes affect future assignments; prior assignments retain their saved destination snapshots. Subfolders are created when first used.
 
-## Copy, Move and Undo
+## Copying, progress and removal
 
-Each destination has its own **Copy / Move** choice. Copy retains the source and other folder copies: return to a photo and press another folder key to save it there too. Sorting still advances immediately after each shortcut. Repeated assignments to the same folder are idempotent unless captured settings change.
+Click a footer folder or press its shortcut to copy the current photo there. A green outline on that folder means the selected photo has a copy there. Click or press the same shortcut again to remove that copy. Copying advances immediately; removing keeps the current photo selected. Pressing again while a copy is still saving cancels that pending copy.
 
-Move first saves the processed photo, then relocates **every original source** into that destination’s **Originals** subfolder. RAW+JPEG pairs keep both original files there; the developed JPEG stays directly in the selected folder. Original bytes and EXIF remain intact. Browsing, editing and further copies continue from the relocated originals, including after restart. This separate original copy makes edited/watermarked outputs reversible.
+Sure Sort automatically saves each opened folder’s session in **.suresort-progress.sqlite** beside its original photos. Reopening restores destination names, shortcuts, output location, edits, watermark/output settings, Undo history and the last viewed photo. Source paths are stored relative to the opened folder so its progress follows it. External output locations keep their absolute paths. Pending jobs remain attached to their folder while you browse another folder, with one shared processing worker.
 
-Use **Ctrl+Z** to reverse the last action. Undoing Copy removes only that folder’s verified generated output; other copies stay. Undoing Move also restores exact original bytes to their preceding paths, including chains of moves. Occupied original paths and externally changed/locked files are preserved with an issue notice; resolve the conflict during automatic retries, or restart to resume an unfinished original restoration. Transfers are journaled before publication/deletion and resume after interruption. The session now uses schema 7; keep a closed-app backup for older versions.
+Completed photos have a green thumbnail outline, and each footer folder containing that photo has a matching green outline. Folder clicks and keys toggle only that destination’s copy; other copies and the original stay intact. Saved destinations without a current shortcut mapping remain clickable in the footer. The thumbnail outline disappears after the last completed copy is removed. Modified, replaced or locked outputs are preserved with an error. **Ctrl+Z** reverses a copy or removal using its saved processing settings. The visible photo bends and narrows into the folder with a short genie animation, while navigation and background saving continue.
 
-The photo-first charcoal interface has a slim header with the input/output folders, a compact **Edit** toggle, a **keyboard icon** for grouped shortcuts with directly editable key cells, the **settings gear**, and fullscreen. Settings uses a sidebar: **Sorting, Watermark, Editing, Saving, About**. **Editing** includes a saved keyboard step slider (1–20 units; exposure uses 0.1 EV per unit, default 5). The slim footer has tinted sorting chips (blue for Copy, purple for Move) showing only the key and folder name, a circular photo-count badge after each folder, a visible **Undo** button, and photo/processing details. Counts reflect actual supported photos directly inside each destination, including existing photos; subfolders such as Originals are excluded and RAW/JPEG pairs count as one photo. Counts refresh in the background after copy/move/undo and external changes. Entering crop mode reveals a ratio bar with **Apply** and **Cancel**; keyboard edits show a brief on-photo value. The product and executable remain named **Sure Sort**; existing sessions and processing/recovery behavior are retained.
+If the original folder is unwritable, the notice **Progress saved on this computer only.** identifies a local fallback. On reopening after the folder becomes writable, local progress synchronizes back. Conflicting independent sessions are both preserved and a chooser selects which to resume. Folder progress uses the new copy-only format; earlier session formats are not imported.
+
+The charcoal interface has a slim header, editing controls and consistently blue destination buttons. Circular badges count actual supported photos directly inside each destination, including pre-existing photos; subfolders are excluded and RAW/JPEG pairs count as one. Counts refresh after copies, removal, Undo and external changes. Destination folders inside the original tree are excluded from its photo catalog.
+
+Photo information and Histogram stay open while clicking, browsing, editing and changing folders. Close with **×** or press the active toolbar button again. The other toolbar button switches between information and histogram. Escape retains crop/fullscreen behavior and does not dismiss these panels.
 
 ## Edit in the viewer
 
@@ -106,13 +110,13 @@ Enabled JPEG and RAW outputs use the selected JPEG quality; standalone PNG stays
 
 ## Sessions and recovery
 
-Qt SQL's SQLite driver stores per-photo edits, editing shortcuts, configuration, watermark PNG versions/settings, assignments, output ownership, undo history and browsing position in `session.sqlite` under Qt's application-local data directory (normally `%LOCALAPPDATA%\SureSort\PhotoCull` on Windows). Schema version 7 upgrades earlier sessions automatically; existing task snapshots are retained and older folder mappings default to Copy. Older app versions cannot reopen the upgraded database. A session lock prevents two instances processing the same database. For a custom/portable location:
+Each original folder stores its copy-only session in `.suresort-progress.sqlite`, including edits, destination configuration, watermark assets/settings, assignments, output ownership, Undo and browsing position. The app profile is `profile.sqlite` under Qt’s application-local data directory (normally `%LOCALAPPDATA%/SureSort/Sure Sort` on Windows). It holds app preferences, defaults, recent folders and local fallbacks. Locks prevent concurrent writers. Earlier session formats remain preserved and are not imported. To select a custom app-profile location:
 
 ```powershell
-& '.\dist\Sure Sort\Sure Sort.exe' --session-db 'D:\PhotoCullSession\session.sqlite'
+& '.\dist\Sure Sort\Sure Sort.exe' --session-db 'D:\SureSortProfile\profile.sqlite'
 ```
 
-Closing pauses unfinished processing; reopening resumes journaled jobs and restores the input folder/photo. Prepared/published outputs are verified during recovery to avoid duplicates. Retry counts and pending retry operations survive restart; exhausted failed processing jobs stay stopped until reassigned. An interrupted partial temp whose ownership was never journaled is preserved as `.photocull-*.part`, and a fresh temp is used. Back up the database while the app is closed; WAL/SHM sidecars may exist while running.
+Closing pauses unfinished processing; reopening resumes journaled jobs and restores the input folder/photo. Prepared/published outputs are verified during recovery to avoid duplicates. Retry counts and pending retry operations survive restart; exhausted failed processing jobs stay stopped until reassigned. An interrupted partial temp whose ownership was never journaled is preserved as `.photocull-*.part`, and a fresh temp is used. Back up progress while the app is closed. A transient rollback journal and lock may exist while running.
 
 ## Windows prerequisites (MSVC 2022 x64)
 

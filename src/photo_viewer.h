@@ -8,6 +8,8 @@
 #include <optional>
 #include <QTimer>
 
+class QPainter;
+
 namespace photocull {
 class PhotoViewer : public QWidget {
     Q_OBJECT
@@ -35,6 +37,8 @@ public:
     bool hasDetail() const { return !detail_.isNull(); }
     bool hasPhoto() const {return !preview_.isNull();}
     QImage histogramImage() const;
+    QImage sortingSnapshot() const;
+    QRect sortingBounds() const;
     double zoomPercent() const { return scale_ * devicePixelRatioF() * 100.0; }
     void fit();
     void actualSize();
@@ -62,6 +66,7 @@ private:
     void updateFit();
     void constrainPan();
     QRectF imageRect() const;
+    void paintImage(QPainter&) const;
     void scheduleRender();
     void startRender();
     QPointF imagePoint(QPointF point) const;

@@ -166,18 +166,6 @@ bool ProcessingPipeline::removeOwned(const QString& path, const QByteArray& dige
     return false;
 #endif
 }
-bool ProcessingPipeline::removeWithBackup(const QString& source,const QByteArray& sourceDigest,const QByteArray& sourceIdentity,
-                                         const QString& backup,const QByteArray& backupDigest,const QByteArray& backupIdentity,QString& error){
-#ifdef Q_OS_WIN
-    Handle guard{CreateFileW(reinterpret_cast<const wchar_t*>(backup.utf16()),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT,nullptr)};
-    if(guard.value==INVALID_HANDLE_VALUE){error="Cannot lock the backup; original preserved: "+source;return false;}
-    QByteArray hash,identity;if(!inspect(guard.value,hash,identity,error)||hash!=backupDigest||identity!=backupIdentity){error="Backup changed; original preserved: "+source;return false;}
-    return removeOwned(source,sourceDigest,sourceIdentity,error);
-#else
-    Q_UNUSED(sourceDigest);Q_UNUSED(sourceIdentity);Q_UNUSED(backup);Q_UNUSED(backupDigest);Q_UNUSED(backupIdentity);
-    error="Verified original relocation requires Windows file locking: "+source;return false;
-#endif
-}
 ProcessingTask ProcessingPipeline::prepare(ProcessingTask task, const CancelToken& cancel) {
     task.status="failed"; task.error.clear();
     try {
@@ -192,12 +180,10 @@ ProcessingTask ProcessingPipeline::prepare(ProcessingTask task, const CancelToke
             || directory.isJunction()
 #endif
             || !QDir().mkpath(task.directory)) { task.error="Cannot create destination folder (linked subfolders are not allowed)."; return task; }
-        const auto sources=task.readSources.isEmpty()?task.photo.sources:task.readSources;
-        QString rawSource,logicalSource;
-        for(int i=0;i<sources.size();++i)if(isRawExtension(QFileInfo(sources[i]).suffix())){rawSource=sources[i];logicalSource=task.photo.sources.value(i,sources[i]);break;}
-        const auto source=rawSource.isEmpty()?Photo{task.photo.id,sources}.displayPath():rawSource;
-        if(logicalSource.isEmpty()){const int i=sources.indexOf(source);logicalSource=task.photo.sources.value(i,source);}
-        const QString filename=rawSource.isEmpty()?QFileInfo(logicalSource).fileName():QFileInfo(logicalSource).completeBaseName()+".jpg";
+        QString rawSource;
+        for(const auto& path:task.photo.sources)if(isRawExtension(QFileInfo(path).suffix())){rawSource=path;break;}
+        const auto source=rawSource.isEmpty()?task.photo.displayPath():rawSource;
+        const QString filename=rawSource.isEmpty()?QFileInfo(source).fileName():QFileInfo(source).completeBaseName()+".jpg";
         task.outputPath=chooseOutput(task.directory,filename);
         if (task.outputPath.isEmpty()) { task.error="No free output filename could be chosen."; return task; }
         QFile output(task.temporaryPath);

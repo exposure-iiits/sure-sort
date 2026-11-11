@@ -14,7 +14,6 @@ public:
     void setCurrentIndex(int index);
     int currentIndex() const {return current_;}
     void setVertical(bool vertical);
-    void setSourceResolver(std::function<Photo(const Photo&)> resolver){resolver_=std::move(resolver);}
     void setCompletionResolver(std::function<bool(const QString&)> resolver){completionResolver_=std::move(resolver);viewport()->update();}
     void refreshCompletion(){viewport()->update();}
     void invalidate(const QString& id);
@@ -42,7 +41,6 @@ private:
     quint64 generation_=0;
     bool active_=false,stopped_=false;
     bool vertical_=false;
-    std::function<Photo(const Photo&)> resolver_;
     std::function<bool(const QString&)> completionResolver_;
 };
 }

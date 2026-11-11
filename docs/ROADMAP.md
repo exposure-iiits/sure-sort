@@ -14,7 +14,7 @@ Windows 11/MinGW verification and synthetic fixtures are recorded in [PERFORMANC
 
 ## Phase 2 — implemented, release validation pending
 
-Ordered destinations/custom shortcuts, automatic copying/full-sensor RAW-to-JPEG, auto-advance, separate processing workers, retries/cancellation, undo/clear/reassignment, collision-safe publication and SQLite session recovery are implemented. RAW+JPEG produces one JPEG. Copy preserves originals; the Sure Sort update adds journaled Move and restoration.
+Ordered destinations/custom shortcuts, automatic copying/full-sensor RAW-to-JPEG, auto-advance, separate processing workers, retries/cancellation, undo/clear/reassignment, collision-safe publication and SQLite session recovery are implemented. RAW+JPEG produces one JPEG. Sorting is copy-only and preserves originals.
 
 Real-camera quality, disk interruptions, large mixed shoots, MSVC, Windows 10 and clean deployment remain release checks. Linux cleanup conservatively preserves outputs on undo. See [PERFORMANCE](PERFORMANCE.md) for verified results.
 
@@ -39,4 +39,4 @@ Compact persisted output settings, immutable output snapshots, explicit sRGB RAW
 
 ## Sure Sort workflow update — implemented
 
-Per-folder Copy/Move, multiple copies, exact original restoration with persistent Ctrl+Z, refreshed icon controls/settings menu, all-shortcuts reference, Original crop ratio, five-unit keyboard adjustments and Z 100%/Fit toggling are implemented. Original relocations use the existing bounded processing worker and a durable transfer journal. Cross-volume/removable-drive failure validation and clean-machine/high-DPI checks remain release work.
+Copy-only destinations, multiple copies, persistent per-folder progress, targeted output removal, consistent blue controls and explicit info/histogram dismissal are implemented. Verified deletion and crash recovery preserve source photos and externally modified outputs.
