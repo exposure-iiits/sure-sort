@@ -32,4 +32,4 @@ Homebrew supplies Qt 6.8 or newer and LibRaw 0.21 or newer. The minimum macOS ve
 
 Run **Actions → Build experimental MacBook package → Run workflow**. Leave **release_tag** empty to download the result from the run's Artifacts section. Maintainers can provide an existing release tag, such as `v0.1.6`, to attach the DMG and checksum to that release.
 
-The workflow uses a macOS 15 Apple Silicon runner. Its build logs and bundled dependency metadata describe the actual toolchain used for that package.
+Choose **macos-15** for Apple Silicon or **macos-15-intel** for Intel. The workflow builds the selected release tag, then attaches the matching architecture's DMG. Its build logs and bundled dependency metadata describe the actual toolchain used for that package.

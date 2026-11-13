@@ -7,29 +7,39 @@ on:
         description: 'Existing release tag to receive the DMG (leave empty for an artifact only)'
         required: false
         type: string
+      runner:
+        description: 'Mac architecture to build'
+        required: true
+        default: macos-15
+        type: choice
+        options:
+          - macos-15
+          - macos-15-intel
 
 permissions:
   contents: read
 
 jobs:
   package:
-    runs-on: macos-15
+    runs-on: ${{ inputs.runner || 'macos-15' }}
     timeout-minutes: 60
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - name: Install build dependencies
         run: brew install cmake ninja qtbase libraw
-      - name: Build and verify Apple Silicon DMG
+      - name: Build and verify Mac DMG
         run: bash tools/package-macos.sh
       - name: Upload experimental installer
         uses: actions/upload-artifact@v7
         with:
-          name: Sure-Sort-macOS-Apple-Silicon-experimental
+          name: Sure-Sort-macOS-${{ runner.arch }}-experimental
           path: |
-            dist/Sure-Sort-*-macOS-arm64-experimental.dmg
-            dist/Sure-Sort-*-macOS-arm64-experimental.dmg.sha256
+            dist/Sure-Sort-*-macOS-*-experimental.dmg
+            dist/Sure-Sort-*-macOS-*-experimental.dmg.sha256
           if-no-files-found: error
           retention-days: 14
       - name: Attach Mac installer to release
@@ -39,6 +49,6 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           gh release upload "$RELEASE_TAG" \
-            dist/Sure-Sort-*-macOS-arm64-experimental.dmg \
-            dist/Sure-Sort-*-macOS-arm64-experimental.dmg.sha256 \
+            dist/Sure-Sort-*-macOS-*-experimental.dmg \
+            dist/Sure-Sort-*-macOS-*-experimental.dmg.sha256 \
             --repo "$GITHUB_REPOSITORY"

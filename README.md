@@ -11,6 +11,7 @@ Browse, edit and sort a photo shoot without leaving the keyboard. Sure Sort runs
 | Windows x64 | [Windows installer](https://github.com/exposure-iiits/sure-sort/releases/download/v0.1.6/Sure-Sort-0.1.6-Setup-Windows-x64.exe) |
 | Windows x64, no installation | [Portable ZIP](https://github.com/exposure-iiits/sure-sort/releases/download/v0.1.6/Sure-Sort-0.1.6-Windows-x64-Portable.zip) |
 | macOS, Apple Silicon | [Mac installer — build pending](https://github.com/exposure-iiits/sure-sort/releases/tag/v0.1.6) |
+| macOS, Intel | [Mac installer — build pending](https://github.com/exposure-iiits/sure-sort/releases/tag/v0.1.6) |
 
 [All releases and checksums](https://github.com/exposure-iiits/sure-sort/releases)
 
