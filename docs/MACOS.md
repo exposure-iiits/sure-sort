@@ -1,6 +1,6 @@
 # macOS installation and builds
 
-Sure Sort 0.1.6 provides an experimental Apple Silicon DMG through [GitHub Releases](https://github.com/exposure-iiits/sure-sort/releases/tag/v0.1.6).
+Experimental Apple Silicon DMGs are published through [GitHub Releases](https://github.com/exposure-iiits/sure-sort/releases/tag/v0.1.6). The 0.1.6 cloud build is currently pending a GitHub runner; the README will link directly to its DMG when the build completes.
 
 ## Install
 
