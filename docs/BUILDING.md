@@ -73,8 +73,8 @@ Install Qt **6.8 or newer**, CMake ≥3.24, Ninja, a C++17 compiler, and dynamic
 cmake --preset linux-release
 cmake --build --preset linux-release --parallel 4
 ctest --preset linux-release
-./build/linux-release/PhotoCull /path/to/photos
+"./build/linux-release/Sure Sort" /path/to/photos
 ./build/linux-release/photocull_bench
 ```
 
-Keep `Qt6Sql.dll` and `sqldrivers/qsqlite.dll` with the deployed app. Linux is untested here; its Qt kit also needs SQL/SQLite support. See [research](RESEARCH.md) and [architecture](DESIGN.md). Preview decoding remains separate from full-sensor processing.
+Linux is untested here; its Qt kit needs SQL/SQLite support. See [research](RESEARCH.md) and [architecture](DESIGN.md). Preview decoding remains separate from full-sensor processing.

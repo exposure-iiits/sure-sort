@@ -11,7 +11,7 @@ cmake --preset windows-release
 cmake --build --preset windows-release --parallel 4
 $env:PATH = "$env:QT_ROOT\bin;$PWD\build\windows-release\vcpkg_installed\x64-windows\bin;" + $env:PATH
 ctest --preset windows-release
-& .\build\windows-release\PhotoCull.exe 'D:\Photos\TestCollection' --cache-mb 256
+& '.\build\windows-release\Sure Sort.exe' 'D:\Photos\TestCollection' --cache-mb 256
 ```
 
 Use disposable copies when exercising filesystem failure cases. Original photo bytes remain read-only; assignments write outputs and a per-folder .suresort-progress.sqlite progress database.
