@@ -1,12 +1,12 @@
 # Sure Sort — source and Windows app
 
-Current application version: **0.1.5**.
+Current application version: **0.1.6**.
 
 ## Work from this project
 
 The `SureSort` folder inside `SureSort-source.zip` is the complete source project for future work. Open this folder in your editor. Keep one working checkout and use it for subsequent changes.
 
-It contains the C++/Qt sources, generated test-fixture code, CMake configuration, build/deployment tools, documentation and third-party license notices. Qt, LibRaw, compiler toolchains and other generated dependencies are installed separately; see the [Windows build instructions](README.md#windows-prerequisites-msvc-2022-x64) and [development guide](docs/DEVELOPMENT.md).
+It contains the C++/Qt sources, generated test-fixture code, CMake configuration, build/deployment tools, documentation and third-party license notices. Qt, LibRaw, compiler toolchains and other generated dependencies are installed separately; see the [Windows build instructions](docs/BUILDING.md) and [development guide](docs/DEVELOPMENT.md).
 
 From a configured development shell:
 
@@ -25,7 +25,7 @@ If using Git, create an empty GitHub repository and run the following from the e
 ```powershell
 git init -b main
 git add .
-git commit -m "Import Sure Sort 0.1.5"
+git commit -m "Import Sure Sort 0.1.6"
 git remote add origin YOUR_GITHUB_REPOSITORY_URL
 git push -u origin main
 ```
@@ -34,6 +34,6 @@ If your repository already has commits, copy these source files into its existin
 
 ## Run or share the Windows app
 
-Run `dist/Sure Sort 0.1.5/Sure Sort.exe`, or extract `dist/Sure-Sort-0.1.5-Windows-x64-Portable.zip` and run the executable inside. This is the latest local build with footer copy toggles and animation. Keep all adjacent DLLs and plugin folders with it. No compiler or SDK is needed. Original photos remain unchanged and each original folder saves its session in `.suresort-progress.sqlite`; earlier Move sessions are not imported. Older local app packages have been removed; their saved app data is preserved under `build/preserved-version-data`.
+Run `dist/Sure Sort 0.1.6/Sure Sort.exe`, or extract `dist/Sure-Sort-0.1.6-Windows-x64-Portable.zip` and run the executable inside. This is the latest local build with footer copy toggles and animation. Keep all adjacent DLLs and plugin folders with it. No compiler or SDK is needed. Original photos remain unchanged and each original folder saves its session in `.suresort-progress.sqlite`; earlier Move sessions are not imported. Older local app packages have been removed; their saved app data is preserved under `build/preserved-version-data`.
 
 Future build packages can be created with [tools/deploy-windows.ps1](tools/deploy-windows.ps1). Version changes are made only when intended, in `project(PhotoCull VERSION ...)` in `CMakeLists.txt`; [versioning](docs/VERSIONING.md) describes how About and `--version` receive it.

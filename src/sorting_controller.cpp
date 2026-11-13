@@ -380,13 +380,13 @@ void SortingController::shutdown() {
     work_.clear(); pool_->waitForDone(); // Only after GUI event loop exits; journal recovers unfinished tasks.
 }
 bool SortingController::setWatermark(const WatermarkSnapshot& snapshot) {
-    if(folderContext_){if(!folderContext_->setWatermark(snapshot))return false;watermark_=snapshot;QString error;if(!store_.saveWatermark(snapshot,error))emit problem(error);return true;}
+    if(folderContext_){if(!folderContext_->setWatermark(snapshot))return false;watermark_=snapshot;watermarkSaveTimer_.start();return true;}
     if(!ready()||stopped_)return false;
     const auto error=validateWatermark(snapshot);if(!error.isEmpty()){emit problem(error);return false;}
     watermark_=snapshot;emit watermarkChanged(watermark_);watermarkSaveTimer_.start();return true;
 }
 void SortingController::saveWatermark() {
-    if(!ready()||stopped_)return;
+    if(!ready_||stopped_)return;
     QString error;if(!store_.saveWatermark(watermark_,error)){ready_=false;emit problem("Could not save watermark settings: "+error);emit progressChanged();}
 }
 bool SortingController::setEdits(const Photo& photo,const PhotoEdits& parameters) {

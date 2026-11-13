@@ -1,6 +1,6 @@
-; Build with: ISCC /DAppSource="...\dist\Sure Sort 0.1.5" suresort-setup.iss
+; Build with: ISCC /DAppSource="...\dist\Sure Sort 0.1.6" suresort-setup.iss
 #ifndef AppSource
-  #define AppSource "..\dist\Sure Sort 0.1.5"
+  #define AppSource "..\dist\Sure Sort 0.1.6"
 #endif
 #define AppVersion GetStringFileInfo(AppSource + "\Sure Sort.exe", "FileVersion")
 

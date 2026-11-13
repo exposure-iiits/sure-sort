@@ -7,7 +7,6 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QIcon>
-#include <QPixmap>
 #include <QFileInfo>
 
 int main(int argc, char** argv) {
@@ -15,10 +14,8 @@ int main(int argc, char** argv) {
     QCoreApplication::setOrganizationName("SureSort");
     QCoreApplication::setApplicationName("Sure Sort");QGuiApplication::setApplicationDisplayName("Sure Sort");
     QCoreApplication::setApplicationVersion(SURESORT_VERSION);
-    // A transparent caption icon prevents Windows falling back to the EXE
-    // resource in the title bar. Explorer keeps the icon embedded in the EXE.
-    QPixmap captionIcon(16,16);captionIcon.fill(Qt::transparent);
-    QApplication::setWindowIcon(QIcon(captionIcon));
+    Q_INIT_RESOURCE(branding);
+    QApplication::setWindowIcon(QIcon(":/branding/suresort.ico"));
     QImageReader::setAllocationLimit(256);
     QCommandLineParser parser;
     parser.setApplicationDescription("Sure Sort · offline photo viewer and automatic keyboard sorting");

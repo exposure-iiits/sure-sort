@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.6 — 14 November 2026
+
+- Keep the latest watermark logo, enable state, position, size, opacity and padding across new/reopened folders and app restarts. Queued copies retain their captured watermark.
+- Make Settings transparent immediately on watermark slider press and restore it immediately on release. Debounce profile saves and avoid rewriting unchanged logo bytes during adjustments.
+- Shorten Quick editing settings. Hide Fit, Clear latest placement and Skip photo from shortcut editing, and remove the Sorting and Application shortcut tabs while retaining their actions and bindings.
+- Remove the watermark logo's 16 MP limit. PNG imports retain the 16 MiB file-size limit.
+- Destination toasts show only the folder name. Remove the F Fit footer hint and restore the taskbar/window logo.
+
+See [release notes](docs/RELEASE-0.1.6.md).
+
 ## 0.1.5 — 11 November 2026
 
 - Refined the output path into a compact, elided header control with a chevron and a menu matching the charcoal theme. Version remains 0.1.5.

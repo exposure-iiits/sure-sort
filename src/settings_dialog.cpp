@@ -69,6 +69,9 @@ SettingsDialog::SettingsDialog(SortingController* sorting, ShortcutManager* shor
     embedDialog(watermark);
     watermark->layout()->setAlignment(Qt::AlignTop);
     pages_->addWidget(watermark);
+    connect(watermark, &WatermarkDialog::previewInteractionChanged, this, [this](bool adjusting) {
+        setWindowOpacity(adjusting && pages_->currentIndex() == Watermark ? 0.15 : 1.0);
+    });
     connect(watermark, &WatermarkDialog::changed, this, [this, watermark](const WatermarkSnapshot& snapshot) {
         if (!sorting_->setWatermark(snapshot)) watermark->showError("Watermark could not be saved. Check the processing status.");
     });
@@ -77,12 +80,7 @@ SettingsDialog::SettingsDialog(SortingController* sorting, ShortcutManager* shor
     auto* editingLayout = new QVBoxLayout(editing);
     editingLayout->setContentsMargins(0, 12, 0, 0);
     auto* editingHelp = new QLabel(
-        "Quick edits are remembered per photograph and applied to saved output.\n\n"
-        "Hold an adjustment key and press its increase or decrease trigger.\n"
-        "Exposure, brightness, contrast, highlights, shadows, saturation and rotation are available.\n\n"
-        "Start a crop with its shortcut, then apply or cancel it using the crop bar.\n"
-        "Use the crop bar to choose a ratio, or the editing panel for sliders.\n\n"
-        "Use the keyboard menu in the header to view or edit your current shortcuts.", editing);
+        "Edits save per photo. Use sliders or customize keys in Keyboard shortcuts.", editing);
     editingHelp->setWordWrap(true);
     editingLayout->addWidget(editingHelp);
     auto* stepTitle = new QLabel("Keyboard editing step", editing);
@@ -102,7 +100,7 @@ SettingsDialog::SettingsDialog(SortingController* sorting, ShortcutManager* shor
     stepRow->addWidget(step, 1);
     stepRow->addWidget(stepValue);
     editingLayout->addLayout(stepRow);
-    auto* stepHelp = new QLabel("Amount added or removed with each key press. Saved automatically. Rotation stays at 90°.", editing);
+    auto* stepHelp = new QLabel("Change per key press. Rotation uses 90° steps.", editing);
     stepHelp->setWordWrap(true);
     editingLayout->addWidget(stepHelp);
     connect(step, &QSlider::valueChanged, this, [this, step, updateStepLabel](int value) {
@@ -115,7 +113,7 @@ SettingsDialog::SettingsDialog(SortingController* sorting, ShortcutManager* shor
             feedback_->setText("Editing step could not be saved.");
         }
     });
-    auto* openEditing = new QPushButton("Open quick editing panel", editing);
+    auto* openEditing = new QPushButton("Open editing panel", editing);
     openEditing->setObjectName("openEditingPanel");
     editingLayout->addWidget(openEditing, 0, Qt::AlignLeft);
     editingLayout->addStretch();
@@ -186,10 +184,11 @@ void SettingsDialog::showPage(Page page) {
 }
 
 void SettingsDialog::selectPage(int page) {
+    setWindowOpacity(1.0);
     const QStringList titles = {"Sorting folders", "Watermark", "Quick editing", "Saving", "Viewing", "About"};
     const QStringList descriptions = {
         "Choose an output folder, then give each sorting folder a key. Save folders to apply changes.",
-        "Preview your logo on the current photograph. Watermark changes save automatically.",
+        "Saved across folders. Adjust a slider to see through this window and preview the photo.",
         "Edit with the keyboard, or reveal the sliders beside your photograph.",
         "Quality, image size and metadata. Changes save automatically for future assignments.",
         "Choose how you browse your photographs.",
@@ -203,6 +202,11 @@ void SettingsDialog::selectPage(int page) {
     save_->setVisible(page == Sorting);
     save_->setEnabled(sorting_->ready());
     save_->setText("Save folders");
+}
+
+void SettingsDialog::hideEvent(QHideEvent* event) {
+    setWindowOpacity(1.0);
+    QDialog::hideEvent(event);
 }
 
 void SettingsDialog::saveCurrentPage() {

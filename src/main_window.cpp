@@ -142,7 +142,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     connect(viewer_,&PhotoViewer::cropModeChanged,this,[this](bool){updateStatus();});
     footerLayout->addLayout(destinationRow);
     statusRow_=new QWidget(footer);statusRow_->setObjectName("photoStatusRow");auto* status=new QHBoxLayout(statusRow_);status->setContentsMargins(0,0,0,0);status->setSpacing(10);
-    filenameLabel_=new QLabel("← → Browse   ·   F Fit   ·   Z 100%",footer);filenameLabel_->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred);status->addWidget(filenameLabel_,2);
+    filenameLabel_=new QLabel("← → Browse   ·   Z 100%",footer);filenameLabel_->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred);status->addWidget(filenameLabel_,2);
     queueButton_=new QPushButton("Ready",footer);queueButton_->setObjectName("processingStatus");queueButton_->setFlat(true);queueButton_->setFocusPolicy(Qt::NoFocus);status->addWidget(queueButton_);
     positionLabel_=new QLabel("0 / 0",footer);dimensionsLabel_=new QLabel(footer);typeLabel_=new QLabel(footer);zoomLabel_=new QLabel(footer);
     for(auto* label:{positionLabel_,dimensionsLabel_,typeLabel_,zoomLabel_}){label->setStyleSheet("color:#a1a1a9;font-size:12px;");status->addWidget(label);}
@@ -241,7 +241,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     connect(&sorting_,&SortingController::assignmentChanged,this,[this](const QString&){filmstrip_->refreshCompletion();updateStatus();});
     connect(&sorting_,&SortingController::progressChanged,this,[this]{if(sorting_.ready()&&sorting_.issues().isEmpty())lastProblem_.clear();updateQueue();});
     connect(&sorting_,&SortingController::advanceRequested,this,[this]{navigate(controller_.index()+1);});
-    connect(&sorting_,&SortingController::copyCompleted,this,[this](const QString& photo,const QString& destination){if(sorting_.uiPreferences().value("showDestinationToast").toBool(false))viewer_->showToast(photo+" → "+destination);});
+    connect(&sorting_,&SortingController::copyCompleted,this,[this](const QString&,const QString& destination){if(sorting_.uiPreferences().value("showDestinationToast").toBool(false))viewer_->showToast(destination);});
     connect(&sorting_,&SortingController::problem,this,[this](const QString& error){lastProblem_=error;queueButton_->setToolTip(error);updateQueue();});
     connect(queueButton_,&QPushButton::clicked,this,[this]{
         processingDetails_=!processingDetails_;updateQueue();
@@ -374,7 +374,7 @@ void MainWindow::updateStatus(const DecodedImage* result) {
         const auto& photo = controller_.catalog()[index];
         filenameLabel_->setText(photo.name()); filenameLabel_->setToolTip(photo.sources.join('\n'));
         typeLabel_->setText(photo.typeLabel());
-    } else filenameLabel_->setText("← → Browse   ·   F Fit   ·   Z 100%");
+    } else filenameLabel_->setText("← → Browse   ·   Z 100%");
     syncSavedDestinations();
     for(int i=0;i<destinationsLayout_->count();++i)if(auto* button=qobject_cast<QPushButton*>(destinationsLayout_->itemAt(i)->widget());button&&button->property("destinationChip").toBool()){
         const auto id=button->property("destinationId").toString();

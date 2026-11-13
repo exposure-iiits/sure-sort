@@ -49,8 +49,8 @@ std::shared_ptr<const WatermarkAsset> decodeWatermarkPng(const QByteArray& png,c
     QBuffer buffer;buffer.setData(png);buffer.open(QIODevice::ReadOnly);
     QImageReader reader(&buffer);reader.setAutoTransform(true);
     const auto size=reader.size();
-    if(reader.format()!="png"||!size.isValid()||qint64(size.width())*size.height()>16LL*1024*1024){
-        error="Choose a valid PNG logo of at most 16 megapixels.";return {};
+    if(reader.format()!="png"||!size.isValid()){
+        error="Choose a valid PNG logo.";return {};
     }
     auto image=reader.read();
     if(image.isNull()){error="Cannot decode PNG: "+reader.errorString();return {};}

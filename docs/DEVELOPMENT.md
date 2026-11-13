@@ -2,7 +2,7 @@
 
 ## Setup and daily workflow
 
-Use the [root README](../README.md#windows-prerequisites-msvc-2022-x64) for the full dependency installation procedure. The intended Windows toolchain is MSVC 2022 x64, official Qt 6.8, CMake/Ninja and vcpkg manifest-mode LibRaw. Qt and LibRaw must use the same architecture and compatible compiler/runtime. Keep their linkage dynamic.
+Use the [build guide](BUILDING.md) for the full dependency installation procedure. The intended Windows toolchain is MSVC 2022 x64, official Qt 6.8, CMake/Ninja and vcpkg manifest-mode LibRaw. Qt and LibRaw must use the same architecture and compatible compiler/runtime. Keep their linkage dynamic.
 
 From a configured MSVC x64 PowerShell, with `QT_ROOT` and `VCPKG_ROOT` set:
 

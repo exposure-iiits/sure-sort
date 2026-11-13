@@ -13,7 +13,7 @@ class SortingController;
 class ShortcutsDialog : public QDialog {
     Q_OBJECT
 public:
-    enum Category { Navigation, Viewing, Sorting, Editing, Application };
+    enum Category { Navigation, Viewing, Editing };
     ShortcutsDialog(ShortcutManager* shortcuts, SortingController* sorting, QWidget* parent);
     void showCategory(Category category);
 protected:

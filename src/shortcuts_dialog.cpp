@@ -74,7 +74,7 @@ ShortcutsDialog::ShortcutsDialog(ShortcutManager* shortcuts, SortingController* 
     auto* help=new QLabel("Double-click to edit a shortcut · Press your new keys · Delete clears · Esc cancels",this);help->setObjectName("shortcutEditHint");help->setWordWrap(true);help->setStyleSheet("color:#9c9ca8;font-size:12px;");layout->addWidget(help);
     categories_=new QTabBar(this);categories_->setObjectName("shortcutCategories");
     categories_->setDrawBase(false);
-    for(const QString title:{"Navigation","Viewing","Sorting","Editing","Application"})categories_->addTab(title);
+    for(const QString title:{"Navigation","Viewing","Editing"})categories_->addTab(title);
     categories_->setExpanding(true);layout->addWidget(categories_);
     table_=new QTableWidget(0,3,this);table_->setObjectName("allShortcutBindings");
     table_->setHorizontalHeaderLabels({"Action","Primary","Alternate"});
@@ -132,16 +132,14 @@ void ShortcutsDialog::populate(){
         for(int col:{1,2})table_->item(row,col)->setToolTip("Double-click to change · Delete clears · Esc cancels");
     };
     const QVector<QStringList> groups={
-        {"next","previous","first","last","open"},{"fit","actual","zoomIn","zoomOut","fullscreen"},
-        {"skip","clearAssignment"},{"confirmCrop"},{"escape","settings"}
+        {"next","previous","first","last","open"},{"actual","zoomIn","zoomOut","fullscreen"},
+        {"confirmCrop"}
     };
     const int category=categories_->currentIndex();
     for(const auto& action:groups[category]){
         QStringList keys;for(const auto& value:shortcuts_->appBindings()){const auto row=value.toObject();if(row["action"]==action)keys.append(row["trigger"].toString());}
         add(names.value(action),nativeKey(keys.value(0)),nativeKey(keys.value(1)),"app",action);
     }
-    if(category==Sorting)for(const auto& folder:sorting_->config().folders)
-        add(QString("Copy / remove: ")+folder.name,nativeKey(folder.shortcut),nativeKey(folder.alternateShortcut),"folder",folder.id);
     if(category==Editing)for(const auto& action:ShortcutManager::editActions())for(const auto& value:shortcuts_->editBindings()){
         const auto row=value.toObject();if(row["action"]!=action.first)continue;
         add(action.second,nativeKey(row["trigger"].toString(),row["hold"].toString()),nativeKey(row["alternate"].toString(),row["hold"].toString()),"edit",action.first);

@@ -5,7 +5,7 @@ param(
     [string]$CompilerBin = '',
     [string]$QtNotices = '.deps/qt-notices/qtbase-everywhere-src-6.8.3',
     [string]$Destination = 'dist/Sure Sort',
-    [string]$ZipPath = 'dist/Sure-Sort-0.1.5-Windows-x64-Portable.zip'
+    [string]$ZipPath = 'dist/Sure-Sort-0.1.6-Windows-x64-Portable.zip'
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot

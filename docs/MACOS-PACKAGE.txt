@@ -1,13 +1,12 @@
-Sure Sort 0.1.2 - experimental macOS package
+Sure Sort 0.1.6 - experimental macOS package
 
 Drag Sure Sort.app onto Applications to install.
 This package is ad-hoc signed, without an Apple Developer ID or notarization.
 macOS may block opening a downloaded copy. It is not a verified Mac release.
 
 Known limitations inherited from the Windows application:
-- Select Copy for every destination in Settings > Sorting before sorting.
-- Move requires Windows file locks and cannot complete on macOS.
-- Undo, clear and reassignment preserve generated files because verified
+- Folder sorting creates copies. Originals stay unchanged.
+- Clear, copy removal and reassignment preserve generated files because verified
   automatic removal currently requires Windows file locks.
 - Editing a sorted image may leave its previous output and save another file.
 

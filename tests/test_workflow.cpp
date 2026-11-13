@@ -48,6 +48,7 @@ private slots:
         auto* settings=window.findChild<QPushButton*>("settingsButton");
         auto* shortcuts=window.findChild<QPushButton*>("allShortcuts");
         QVERIFY(viewer->isVisible());
+        for(auto* label:window.findChildren<QLabel*>())QVERIFY(!label->text().contains("F Fit"));
         for(int i=0;i<2;++i){
             settings->click();QPointer<SettingsDialog> dialog=window.findChild<SettingsDialog*>();QVERIFY(dialog&&dialog->isVisible());QVERIFY(viewer->isVisible());
             QVERIFY(dialog->isWindow());QCOMPARE(dialog->windowModality(),Qt::WindowModal);QTRY_COMPARE(QApplication::activeModalWidget(),dialog.data());
@@ -161,7 +162,13 @@ private slots:
             QVERIFY(reference->isWindow());QCOMPARE(reference->windowModality(),Qt::WindowModal);QVERIFY(!window.findChild<QLabel*>("appLogo"));
             auto* table=reference->findChild<QTableWidget*>();QCOMPARE(table->columnCount(),3);
             QCOMPARE(table->rowCount(),5);QVERIFY(!reference->findChild<QWidget*>("shortcutEditor"));capture("shortcuts",reference);
-            auto edit=[&](const QString& action,int slot=0){auto* tabs=reference->findChild<QTabBar*>("shortcutCategories");tabs->setCurrentIndex(action.startsWith("assign:")?2:action.startsWith("edit:")?3:action=="fit"?1:0);
+            auto* tabs=reference->findChild<QTabBar*>("shortcutCategories");QCOMPARE(tabs->count(),3);
+            for(int i=0;i<tabs->count();++i){
+                QVERIFY(tabs->tabText(i)!="Sorting"&&tabs->tabText(i)!="Application");tabs->setCurrentIndex(i);
+                for(int row=0;row<table->rowCount();++row){const auto action=table->item(row,0)->data(Qt::UserRole+1).toString();
+                    QVERIFY(action!="fit"&&action!="skip"&&action!="clearAssignment");}
+            }
+            auto edit=[&](const QString& action,int slot=0){tabs->setCurrentIndex(action.startsWith("edit:")?2:action=="zoomIn"?1:0);
                 const auto id=action.startsWith("assign:")?action.mid(7):action;
                 for(int i=0;i<table->rowCount();++i)if(table->item(i,0)->data(Qt::UserRole+1).toString()==id){
                     table->scrollToItem(table->item(i,slot+1));
@@ -184,19 +191,18 @@ private slots:
             edit("edit:exposureUp");chord(Qt::Key_Up);
             edit("edit:exposureUp",1);chord(Qt::Key_Down);
             QCOMPARE(manager->editBindings()[0].toObject()["hold"].toString(),QString("U"));
-            edit("assign:a");key(Qt::Key_9);edit("assign:a",1);key(Qt::Key_8);
-            edit("fit");key(Qt::Key_Delete);
+            edit("zoomIn",1);key(Qt::Key_Delete);
             reference->close();QTRY_VERIFY(reference.isNull());
             window.findChild<QPushButton*>("toggleEdit")->setChecked(true);
             window.findChild<QPushButton*>("editingShortcutsButton")->click();reference=window.findChild<QDialog*>("shortcutReference");QVERIFY(reference);
-            QCOMPARE(reference->findChild<QTabBar*>("shortcutCategories")->currentIndex(),3);QCOMPARE(reference->findChild<QTableWidget*>()->accessibleName(),QString("Editing shortcuts"));
+            QCOMPARE(reference->findChild<QTabBar*>("shortcutCategories")->currentIndex(),2);QCOMPARE(reference->findChild<QTableWidget*>()->accessibleName(),QString("Editing shortcuts"));
             capture("editing-category",&window);
             reference->close();QTRY_VERIFY(reference.isNull());
             window.activateWindow();viewer->setFocus();
             QTest::keyPress(viewer,Qt::Key_U);QTest::keyClick(viewer,Qt::Key_Up);QTest::keyRelease(viewer,Qt::Key_U);QCOMPARE(viewer->edits().exposure,7);
             QTest::keyPress(viewer,Qt::Key_B);QTest::keyClick(viewer,Qt::Key_Right);QTest::keyRelease(viewer,Qt::Key_B);QCOMPARE(viewer->edits().brightness,7);
             QSignalSpy actions(manager,&ShortcutManager::triggered);QTest::keyClick(viewer,Qt::Key_PageDown);QCOMPARE(actions.last().first().toString(),QString("next"));
-            QTest::keyClick(viewer,Qt::Key_9);QTRY_VERIFY(QFileInfo::exists(dir.filePath("out/A/photo.jpg")));
+            QTest::keyClick(viewer,Qt::Key_1);QTRY_VERIFY(QFileInfo::exists(dir.filePath("out/A/photo.jpg")));
             capture("main-updated",&window);window.shutdown();
         }
         {
@@ -207,10 +213,12 @@ private slots:
             QCOMPARE(manager->editBindings()[0].toObject()["hold"].toString(),QString("U"));
             QCOMPARE(manager->editBindings()[0].toObject()["alternate"].toString(),QString("Down"));
             QSignalSpy alternateActions(manager,&ShortcutManager::triggered);window.activateWindow();viewer->setFocus();QTest::keyClick(viewer,Qt::Key_PageUp);QCOMPARE(alternateActions.last().first().toString(),QString("next"));
-            QTest::keyClick(viewer,Qt::Key_8);QCOMPARE(alternateActions.last().first().toString(),QString("assign:a"));
-            bool disabledFit=false;for(const auto& binding:manager->appBindings())if(binding.toObject()["action"]=="fit")disabledFit=binding.toObject()["trigger"].toString().isEmpty();QVERIFY(disabledFit);
+            for(const auto& binding:QVector<QPair<Qt::Key,QString>>{{Qt::Key_1,"assign:a"},{Qt::Key_F,"fit"},{Qt::Key_Space,"skip"},{Qt::Key_Backspace,"clearAssignment"}}){
+                QTest::keyClick(viewer,binding.first);
+                QCOMPARE(alternateActions.last().first().toString(),binding.second);
+            }
             QPushButton* chip=nullptr;for(auto* button:window.findChildren<QPushButton*>())if(button->property("destinationId").toString()=="a")chip=button;
-            QVERIFY(chip&&chip->text().startsWith("9  "));
+            QVERIFY(chip&&chip->text().startsWith("1  "));
             window.activateWindow();viewer->setFocus();
             QTest::keyPress(viewer,Qt::Key_U);QTest::keyClick(viewer,Qt::Key_Up);QTest::keyRelease(viewer,Qt::Key_U);QCOMPARE(viewer->edits().exposure,14);
             window.findChild<QPushButton*>("settingsButton")->click();auto* settings=window.findChild<SettingsDialog*>();

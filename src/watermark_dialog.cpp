@@ -5,10 +5,14 @@
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QLabel>
+#include <QKeyEvent>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QRunnable>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QTimer>
+#include <QWheelEvent>
 #include <QVBoxLayout>
 
 namespace photocull {
@@ -27,6 +31,7 @@ WatermarkDialog::WatermarkDialog(WatermarkSnapshot snapshot,QWidget* parent):QDi
     auto slider=[&](const QString& title,const QString& name,int minimum,int maximum,QSlider*& control,QLabel*& label){
         auto* row=new QHBoxLayout;control=new QSlider(Qt::Horizontal,this);control->setObjectName(name);control->setRange(minimum,maximum);
         label=new QLabel(this);label->setMinimumWidth(38);row->addWidget(control,1);row->addWidget(label);form->addRow(title,row);
+        control->installEventFilter(this);
         connect(control,&QSlider::valueChanged,this,[this]{controlsChanged();});
     };
     slider("Size","watermarkSize",1,100,size_,sizeValue_);
@@ -49,6 +54,41 @@ WatermarkDialog::WatermarkDialog(WatermarkSnapshot snapshot,QWidget* parent):QDi
     if(snapshot_.settings.enabled&&!snapshot_.asset)showError("Saved PNG unavailable. Select a PNG or disable watermarking.");
 }
 WatermarkDialog::~WatermarkDialog(){++generation_;importPool_.clear();importPool_.waitForDone();}
+bool WatermarkDialog::eventFilter(QObject* target,QEvent* event){
+    if(target==size_||target==opacity_||target==padding_){
+        auto adjustmentKey=[](int key){
+            return key==Qt::Key_Left||key==Qt::Key_Right||key==Qt::Key_Up||key==Qt::Key_Down||
+                   key==Qt::Key_PageUp||key==Qt::Key_PageDown||key==Qt::Key_Home||key==Qt::Key_End;
+        };
+        switch(event->type()){
+        case QEvent::MouseButtonPress:
+            if(static_cast<QMouseEvent*>(event)->button()==Qt::LeftButton)emit previewInteractionChanged(true);
+            break;
+        case QEvent::MouseButtonRelease:
+            if(static_cast<QMouseEvent*>(event)->button()==Qt::LeftButton)emit previewInteractionChanged(false);
+            break;
+        case QEvent::KeyPress: {
+            if(adjustmentKey(static_cast<QKeyEvent*>(event)->key()))emit previewInteractionChanged(true);
+            break;
+        }
+        case QEvent::KeyRelease: {
+            const auto* key=static_cast<QKeyEvent*>(event);
+            if(!key->isAutoRepeat()&&adjustmentKey(key->key()))emit previewInteractionChanged(false);
+            break;
+        }
+        case QEvent::Wheel:
+            emit previewInteractionChanged(static_cast<QWheelEvent*>(event)->phase()!=Qt::ScrollEnd);
+            if(static_cast<QWheelEvent*>(event)->phase()==Qt::NoScrollPhase)
+                QTimer::singleShot(0,this,[this]{emit previewInteractionChanged(false);});
+            break;
+        case QEvent::FocusOut:
+        case QEvent::Hide:
+            emit previewInteractionChanged(false);break;
+        default:break;
+        }
+    }
+    return QDialog::eventFilter(target,event);
+}
 void WatermarkDialog::showError(const QString& error){note_->setText(error);note_->setStyleSheet("color:#edbc81;");note_->show();}
 void WatermarkDialog::syncControls(){
     const QSignalBlocker a(enabled_),b(position_),c(size_),d(opacity_),e(padding_);

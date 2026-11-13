@@ -17,6 +17,8 @@ public:
     enum Page { Sorting, Watermark, Editing, Saving, Viewing, About };
     SettingsDialog(SortingController* sorting, ShortcutManager* shortcuts, QWidget* parent = nullptr);
     void showPage(Page page);
+protected:
+    void hideEvent(QHideEvent* event) override;
 signals:
     void editingRequested();
     void viewerPreferencesChanged();

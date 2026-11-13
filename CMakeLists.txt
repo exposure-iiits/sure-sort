@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(PhotoCull VERSION 0.1.5 LANGUAGES CXX)
+project(PhotoCull VERSION 0.1.6 LANGUAGES CXX)
 configure_file(src/app_version.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/app_version.h @ONLY)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

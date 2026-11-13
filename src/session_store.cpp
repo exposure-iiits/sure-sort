@@ -245,7 +245,8 @@ bool SessionStore::saveWatermark(const WatermarkSnapshot& snapshot,QString& erro
     error=validateWatermark(snapshot);if(!error.isEmpty())return false;
     if(!db_.transaction()){error=db_.lastError().text();return false;}
     auto json=watermarkSettingsJson(snapshot.settings);json.insert("asset",snapshot.assetId);
-    if(!putAsset(snapshot,error,true)||!exec("INSERT OR REPLACE INTO metadata VALUES('watermark',?)",
+    const bool replaceAsset=assets_.value(snapshot.assetId).lock()!=snapshot.asset;
+    if(!putAsset(snapshot,error,replaceAsset)||!exec("INSERT OR REPLACE INTO metadata VALUES('watermark',?)",
         {QString::fromUtf8(QJsonDocument(json).toJson(QJsonDocument::Compact))},error)){db_.rollback();return false;}
     if(!db_.commit()){error=db_.lastError().text();db_.rollback();return false;}return true;
 }

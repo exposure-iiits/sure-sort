@@ -2,6 +2,11 @@ name: Build experimental MacBook package
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing release tag to receive the DMG (leave empty for an artifact only)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -10,6 +15,8 @@ jobs:
   package:
     runs-on: macos-15
     timeout-minutes: 60
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
       - name: Install build dependencies
@@ -25,3 +32,13 @@ jobs:
             dist/Sure-Sort-*-macOS-arm64-experimental.dmg.sha256
           if-no-files-found: error
           retention-days: 14
+      - name: Attach Mac installer to release
+        if: inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            dist/Sure-Sort-*-macOS-arm64-experimental.dmg \
+            dist/Sure-Sort-*-macOS-arm64-experimental.dmg.sha256 \
+            --repo "$GITHUB_REPOSITORY"

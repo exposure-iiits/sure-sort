@@ -41,7 +41,9 @@ bool SortingController::openFolderSession(const QString& folder,const std::funct
     const QFileInfo folderInfo(folder);const auto root=folderInfo.canonicalFilePath();
     if(root.isEmpty()||!folderInfo.isDir()){emit problem("Cannot open the photo folder.");return false;}
     if(auto existing=folderContexts_.value(root)){
-        folderContext_=existing.get();folderUnavailable_=false;emit configChanged();emit watermarkChanged(watermark());emit progressChanged();return existing->ready();
+        folderContext_=existing.get();folderUnavailable_=false;
+        if(existing->ready()&&!existing->setWatermark(watermark_))return false;
+        emit configChanged();emit watermarkChanged(watermark());emit progressChanged();return existing->ready();
     }
     const auto sidecar=QDir(root).filePath(".suresort-progress.sqlite");
     QString key=root;
@@ -95,9 +97,12 @@ bool SortingController::openFolderSession(const QString& folder,const std::funct
     context->uiPreferences_=uiPreferences_;
     if(context->store_.metadata("folder_initialized").isEmpty()){
         if(!config_.outputRoot.isEmpty())context->configure(config_);
-        context->setOutput(output_);context->setWatermark(watermark_);context->saveEditBindings(editBindings_);
+        context->setOutput(output_);context->saveEditBindings(editBindings_);
         QString error;if(!context->store_.setMetadata("folder_initialized","1",error)){context->ready_=false;emit problem(error);return false;}
     }
+    // The app's latest watermark follows the user across folders. Each queued
+    // task retains its own immutable watermark snapshot in the folder session.
+    if(!context->setWatermark(watermark_))return false;
     if(localOnly)context->progressNotice_="Progress saved on this computer only.";
     savePosition(root,context->restoredPhoto_);saveSessionIndex();
     emit configChanged();emit watermarkChanged(watermark());emit progressChanged();return true;

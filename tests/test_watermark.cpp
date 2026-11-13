@@ -4,6 +4,7 @@
 #include "sorting_controller.h"
 #include "main_window.h"
 #include "settings_dialog.h"
+#include "folder_scanner.h"
 #include "raw_fixture.h"
 #include <QApplication>
 #include <QBuffer>
@@ -69,6 +70,68 @@ bool execute(const QString& path,const std::function<bool(QSqlDatabase&)>& fn) {
 class WatermarkTest:public QObject {
     Q_OBJECT
 private slots:
+    void watermarkFollowsFoldersAndRestart(){
+        QTemporaryDir dir;const auto profile=dir.filePath("profile.sqlite");
+        const auto first=dir.filePath("one"),second=dir.filePath("two"),third=dir.filePath("three");
+        for(const auto& folder:{first,second,third})QVERIFY(QDir().mkpath(folder));
+        QVERIFY(write(first+"/photo.jpg",encoded(solid({600,400}),"JPEG")));
+        const auto photo=scanFolder(first).photos.first();
+        auto original=logo();auto latest=logo(Qt::blue);latest.settings.sizePercent=29;
+        latest.settings.opacityPercent=63;latest.settings.paddingPercent=7;latest.settings.position=WatermarkPosition::TopLeft;
+        {SessionStore store;QString error;QVERIFY(store.open(second+"/.suresort-progress.sqlite",error));
+            QVERIFY(store.saveWatermark({},error));QVERIFY(store.setMetadata("folder_initialized","1",error));}
+        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.configure(config(dir.filePath("out"))));
+            QVERIFY(c.setWatermark(original));QVERIFY(c.openFolderSession(first));QVERIFY(c.watermark()==original);
+            QVERIFY(!c.assign(photo,"club").isEmpty());QVERIFY(c.setWatermark(latest));
+            QVERIFY(c.openFolderSession(second));QVERIFY(c.watermark()==latest);
+            QVERIFY(c.openFolderSession(first));QVERIFY(c.watermark()==latest);
+            QVERIFY(c.assignment(photo.id).watermark==original);
+            auto disabled=latest;disabled.settings.enabled=false;QVERIFY(c.setWatermark(disabled));
+            QVERIFY(c.openFolderSession(third));QVERIFY(c.watermark()==disabled);
+            QVERIFY(c.openFolderSession(second));QVERIFY(c.watermark()==disabled);
+            QVERIFY(c.setWatermark(latest));QTRY_COMPARE(c.remaining(),0);
+            latest.settings.opacityPercent=51;QVERIFY(c.setWatermark(latest));c.shutdown();}
+        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(second));
+            QVERIFY(c.watermark()==latest);QVERIFY(c.watermark().asset);QCOMPARE(c.watermark().asset->png,latest.asset->png);
+            QVERIFY(c.openFolderSession(first));QVERIFY(c.watermark()==latest);QVERIFY(c.assignment(photo.id).watermark==original);c.shutdown();}
+    }
+    void settingsFadeDuringWatermarkAdjustments(){
+        QTemporaryDir dir;const auto profile=dir.filePath("profile.sqlite"),input=dir.filePath("input");
+        QVERIFY(QDir().mkpath(input));QVERIFY(write(input+"/photo.jpg",encoded(solid({600,400}),"JPEG")));
+        {SessionStore store;QString error;QVERIFY(store.open(profile,error));QVERIFY(store.saveWatermark(logo(),error));}
+        MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(input);
+        auto* viewer=window.findChild<PhotoViewer*>();QTRY_VERIFY(viewer->hasPhoto());
+        window.findChild<QAction*>("watermarkSettings")->trigger();
+        QPointer<SettingsDialog> settings=window.findChild<SettingsDialog*>();QVERIFY(settings);
+        for(const auto& name:{"watermarkSize","watermarkOpacity","watermarkPadding"}){
+            auto* slider=settings->findChild<QSlider*>(name);QVERIFY(slider&&slider->isVisible());
+            QTest::mousePress(slider,Qt::LeftButton,Qt::NoModifier,slider->rect().center());
+            QVERIFY(settings->windowOpacity()<0.2);QTest::mouseRelease(slider,Qt::LeftButton,Qt::NoModifier,slider->rect().center());
+            QVERIFY(settings->windowOpacity()>0.99);
+            slider->setFocus();const int before=slider->value();QTest::keyPress(slider,Qt::Key_Left);
+            QVERIFY(slider->value()<before);QVERIFY(settings->windowOpacity()<0.2);
+            QTest::keyRelease(slider,Qt::Key_Left);QVERIFY(settings->windowOpacity()>0.99);
+        }
+        auto* size=settings->findChild<QSlider*>("watermarkSize");size->setFocus();QTest::keyPress(size,Qt::Key_Right);
+        QVERIFY(settings->windowOpacity()<0.2);settings->showPage(SettingsDialog::Editing);QVERIFY(settings->windowOpacity()>0.99);
+        QTest::keyRelease(size,Qt::Key_Right);
+        settings->showPage(SettingsDialog::Watermark);size->setFocus();QTest::keyPress(size,Qt::Key_Right);
+        QVERIFY(settings->windowOpacity()<0.2);settings->hide();QVERIFY(settings->windowOpacity()>0.99);
+        QTest::keyRelease(size,Qt::Key_Right);
+        settings->close();QTRY_VERIFY(settings.isNull());window.shutdown();
+    }
+    void importsWatermarkAboveSixteenMegapixels(){
+        QTemporaryDir dir;const auto path=dir.filePath("large-logo.png");
+        QVERIFY(solid({5000,4000},Qt::red).save(path,"PNG"));
+        QString error;WatermarkSnapshot snapshot;snapshot.asset=importWatermarkPng(path,error);
+        QVERIFY2(snapshot.asset,qPrintable(error));QCOMPARE(snapshot.asset->image.size(),QSize(5000,4000));
+        snapshot.assetId=snapshot.asset->id;snapshot.settings.enabled=true;
+        const auto database=dir.filePath("watermark.sqlite");
+        {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveWatermark(snapshot,error));}
+        snapshot.asset.reset();
+        {SessionStore store;QVERIFY(store.open(database,error));SessionSnapshot saved;QVERIFY(store.load(saved,error));
+            QVERIFY(saved.watermark.asset);QCOMPARE(saved.watermark.asset->image.size(),QSize(5000,4000));}
+    }
     void initTestCase(){qRegisterMetaType<WatermarkSnapshot>();qRegisterMetaType<Photo>();}
     void geometry_data(){
         QTest::addColumn<int>("corner");QTest::addColumn<QSize>("photo");
