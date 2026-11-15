@@ -39,6 +39,9 @@ private:
     QPushButton* outputLabel_;
     void outputFolderMenu();
     void updateOutputButton();
+    QString suggestedOutputFolder() const;
+    void reuseFolderMenu(QWidget* button);
+    void reuseFolders(const QVector<Destination>& folders);
     void chooseFolder();
     void navigate(int index);
     void toggleDestination(const QString& id);
@@ -94,6 +97,7 @@ private:
     QWidget* footer_;
     QWidget* statusRow_;
     QScrollArea* editScroll_;
+    QScrollArea* shortcutsScroll_;
     QScrollArea* photoTools_;
     QScrollArea* informationTools_;
 };

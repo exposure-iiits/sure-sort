@@ -1,6 +1,6 @@
 # macOS installation and builds
 
-Experimental Apple Silicon DMGs are published through [GitHub Releases](https://github.com/exposure-iiits/sure-sort/releases/tag/v0.1.6). The 0.1.6 cloud build is currently pending a GitHub runner; the README will link directly to its DMG when the build completes.
+Version 0.1.7 provides Windows installers and portable packages. macOS packaging remains experimental and can be built locally or through the manual GitHub Actions workflow below. Check [GitHub Releases](https://github.com/exposure-iiits/sure-sort/releases) for any separately published experimental Mac packages.
 
 ## Install
 
@@ -30,6 +30,6 @@ Homebrew supplies Qt 6.8 or newer and LibRaw 0.21 or newer. The minimum macOS ve
 
 ## Build with GitHub Actions
 
-Run **Actions → Build experimental MacBook package → Run workflow**. Leave **release_tag** empty to download the result from the run's Artifacts section. Maintainers can provide an existing release tag, such as `v0.1.6`, to attach the DMG and checksum to that release.
+Run **Actions → Build experimental MacBook package → Run workflow**. Leave **release_tag** empty to download the result from the run's Artifacts section. Maintainers can provide an existing release tag, such as `v0.1.7`, to attach the DMG and checksum to that release.
 
 Choose **macos-15** or **macos-26** for Apple Silicon, or **macos-15-intel** for Intel. The workflow builds the selected release tag, then attaches the matching architecture's DMG. Its build logs and bundled dependency metadata describe the actual toolchain used for that package.

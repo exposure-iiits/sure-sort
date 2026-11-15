@@ -1,4 +1,5 @@
 #include "sorting_controller.h"
+#include "saved_folder_fixture.h"
 #include "shortcut_manager.h"
 #include "main_window.h"
 #include "raw_fixture.h"
@@ -183,6 +184,7 @@ private slots:
         QTemporaryDir dir;const auto input=dir.filePath("input"),output=dir.filePath("output"),db=dir.filePath("session.sqlite");
         QVERIFY(QDir().mkpath(input));for(int i=1;i<=3;++i)QVERIFY(write(QDir(input).filePath(QString("IMG_%1.jpg").arg(i)),jpeg({900,600})));
         {SessionStore store;QString error;QVERIFY(store.open(db,error));QVERIFY(store.saveConfig(config(output),error));}
+        QVERIFY(saveFolderConfig(db,input,config(output)));
         auto hasLabel=[](MainWindow& window,const QString& text){for(auto* label:window.findChildren<QLabel*>())if(label->text()==text)return true;return false;};
         {
             MainWindow window(16*1024*1024,nullptr,db);window.show();window.openFolder(input);

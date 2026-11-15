@@ -1,4 +1,4 @@
-param([string]$ZipPath = 'dist/SureSort-source-0.1.2.zip')
+param([string]$ZipPath = 'dist/SureSort-source-0.1.7.zip')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $projectRoot = Split-Path -Parent $PSScriptRoot

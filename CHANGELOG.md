@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.7 — 15 November 2026
+
+- Create and select a sibling `[opened folder]_sorted` output directory from the output menu.
+- Remove destination buttons from the footer without deleting files, cancelling copies or losing saved copy records.
+- Offer Reuse folders / New folder for folders without saved progress, including previous names and names imported from an existing directory.
+- Show shortcuts in a compact editor-style viewer panel with clickable keycaps, arrow symbols and vertical scrolling.
+- Keep the portable-mode marker out of Windows installer packages so installed preferences use the normal app profile.
+- Record startup update checks and an Update / Later prompt as planned work; automatic updating is not implemented in this release.
+
+See [release notes](docs/RELEASE-0.1.7.md).
+
 ## 0.1.6 — 14 November 2026
 
 - Keep the latest watermark logo, enable state, position, size, opacity and padding across new/reopened folders and app restarts. Queued copies retain their captured watermark.

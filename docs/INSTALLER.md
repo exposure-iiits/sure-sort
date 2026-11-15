@@ -1,8 +1,8 @@
 # Single-file Windows installer
 
-Share `dist/Sure-Sort-0.1.2-Setup-Windows-x64.exe` (about 12 MB). It installs the complete application, Qt/LibRaw dependencies and license notices, then offers to open Sure Sort. No separate ZIP extraction, SDK or administrator elevation is needed. A Start menu shortcut is created; the desktop shortcut is optional.
+Share `dist/Sure-Sort-0.1.7-Setup-Windows-x64.exe`. It installs the complete application, Qt/LibRaw dependencies and license notices, then offers to open Sure Sort. No separate ZIP extraction, SDK or administrator elevation is needed. A Start menu shortcut is created; the desktop shortcut is optional.
 
-The default location is `%LOCALAPPDATA%\Programs\Sure Sort`. Session data is created in its `data` subfolder and is not included in the shared installer. Uninstall removes installed program files and leaves subsequently created session files alone.
+The default location is `%LOCALAPPDATA%\Programs\Sure Sort`. Installed app preferences live under `%LOCALAPPDATA%\SureSort\Sure Sort`; sorting progress lives in each original folder's `.suresort-progress.sqlite` file. The installer excludes the portable-mode marker and personal databases. Portable ZIPs keep app preferences in their own `data` folder. Uninstall removes installed program files and leaves user-created session files alone.
 
 The EXE is unsigned. Packaging as an installer does not remove Windows SmartScreen warnings.
 

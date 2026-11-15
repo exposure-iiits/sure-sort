@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "saved_folder_fixture.h"
 #include "photo_popup.h"
 #include "photo_information.h"
 #include "filmstrip.h"
@@ -65,6 +66,7 @@ private slots:
         for(int i=0;i<24;++i)QVERIFY(image(QColor::fromHsv(i*15,100,180)).save(input+QString("/photo_%1_with_a_long_file_name.jpg").arg(i,2,10,QChar('0'))));
         DestinationConfig config;config.outputRoot=dir.filePath("out");for(int i=0;i<30;++i)config.folders.append({QString::number(i),QString("Folder %1 with a very long descriptive name").arg(i),i==0?"1":""});
         QString error;{SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config,error));}
+        QVERIFY(saveFolderConfig(database,input,config));
         {
             MainWindow window(12*1024*1024,nullptr,database);window.resize(640,480);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();QTRY_VERIFY(viewer->hasPhoto());
             auto* strip=window.findChild<Filmstrip*>();QVERIFY(strip->isVisible());QCOMPARE(strip->currentIndex(),0);

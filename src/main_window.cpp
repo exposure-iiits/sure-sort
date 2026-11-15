@@ -62,7 +62,7 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     auto* destinations=new QAction("Sorting destinations…",this);destinations->setObjectName("destinationSettings");addAction(destinations);
     auto* output=new QAction("Output settings…",this);output->setObjectName("outputSettings");addAction(output);
     auto* watermark=new QAction("Watermark…",this);watermark->setObjectName("watermarkSettings");addAction(watermark);
-    auto* shortcutButton=new QPushButton(uiIcon("keyboard"),QString(),top);shortcutButton->setObjectName("allShortcuts");shortcutButton->setAccessibleName("All shortcuts");shortcutButton->setToolTip("All keyboard shortcuts");
+    auto* shortcutButton=new QPushButton(uiIcon("keyboard"),QString(),top);shortcutButton->setObjectName("allShortcuts");shortcutButton->setAccessibleName("All shortcuts");shortcutButton->setToolTip("All keyboard shortcuts");shortcutButton->setCheckable(true);
     connect(shortcutButton,&QPushButton::clicked,this,&MainWindow::showShortcuts);
     auto* information=new QPushButton(uiIcon("info"),QString(),top);information->setObjectName("photoInfoButton");information->setAccessibleName("Photo information");information->setToolTip("Photo information");information->setCheckable(true);information->setEnabled(false);
     auto* histogram=new QPushButton(uiIcon("histogram"),QString(),top);histogram->setObjectName("histogramButton");histogram->setAccessibleName("Photo histogram");histogram->setToolTip("Photo histogram");histogram->setCheckable(true);histogram->setEnabled(false);
@@ -99,8 +99,12 @@ MainWindow::MainWindow(qint64 cacheBudget, QWidget* parent,QString databasePath)
     editScroll->viewport()->setAutoFillBackground(false);
     editPanel_=new EditPanel(editScroll);editPanel_->setEnabled(false);editScroll->setWidget(editPanel_);editScroll->hide();
     toolLayout->addWidget(editScroll);toolLayout->addStretch();
+    shortcutsScroll_=new QScrollArea(toolContent);shortcutsScroll_->setObjectName("shortcutsCard");shortcutsScroll_->setFixedWidth(336);shortcutsScroll_->setWidgetResizable(true);shortcutsScroll_->setFrameShape(QFrame::NoFrame);shortcutsScroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    shortcutsScroll_->setStyleSheet("QScrollArea#shortcutsCard {background:rgba(30,30,35,235);border:1px solid rgba(255,255,255,42);border-radius:12px;padding:4px;} QScrollArea#shortcutsCard > QWidget > QWidget {background:transparent;} QScrollArea#shortcutsCard QScrollBar:vertical {background:transparent;width:6px;}");
+    shortcutsScroll_->viewport()->setAutoFillBackground(false);toolLayout->insertWidget(1,shortcutsScroll_);shortcutsScroll_->hide();
     connect(viewer_,&PhotoViewer::targetChanged,this,&MainWindow::layoutPhotoTools);
     connect(edit,&QPushButton::toggled,editScroll,&QWidget::setVisible);
+    connect(edit,&QPushButton::toggled,this,[this,shortcutButton](bool visible){if(visible){editPanel_->setShortcutBindings(shortcuts_->editBindings());if(shortcutButton->isChecked()){shortcutButton->setChecked(false);shortcutsScroll_->hide();}}});
     connect(edit,&QPushButton::toggled,this,&MainWindow::layoutPhotoTools);
     connect(editPanel_,&EditPanel::changed,this,&MainWindow::applyEdits);
     connect(editPanel_,&EditPanel::cropRequested,this,[this]{if(viewer_->isCropping())viewer_->cancelCrop();else viewer_->beginCrop();viewer_->setFocus();});
@@ -277,13 +281,26 @@ void MainWindow::updateOutputButton(){
     const int buttonWidth=qMin(limit,metrics.horizontalAdvance(full+QString::fromUtf8("  ▾"))+24);
     outputLabel_->setFixedSize(buttonWidth,28);
     outputLabel_->setText(metrics.elidedText(full,Qt::ElideMiddle,buttonWidth-38)+QString::fromUtf8("  ▾"));
-    outputLabel_->setToolTip((root.isEmpty()?QString("Output folder"):QDir::toNativeSeparators(root))+"\nOpen folder or change output location");
+    outputLabel_->setToolTip((root.isEmpty()?QString("Output folder"):QDir::toNativeSeparators(root))+"\nOpen, change, or create a sibling output folder");
+}
+QString MainWindow::suggestedOutputFolder() const {
+    if(folder_.isEmpty())return {};
+    const QFileInfo source(folder_);
+    if(source.fileName().isEmpty())return {};
+    return source.dir().filePath(source.fileName()+"_sorted");
 }
 void MainWindow::outputFolderMenu(){
     QMenu menu(this);menu.setObjectName("outputFolderMenu");menu.setMinimumWidth(220);
     const auto root=sorting_.config().outputRoot;
     auto* open=menu.addAction(uiIcon("folder"),"Open in Explorer");open->setObjectName("openOutputInExplorer");open->setEnabled(QFileInfo(root).isDir());
     connect(open,&QAction::triggered,this,[root]{QDesktopServices::openUrl(QUrl::fromLocalFile(root));});
+    const auto suggested=suggestedOutputFolder();
+    auto* create=menu.addAction(uiIcon("plus"),suggested.isEmpty()?"Create sorted output folder":"Create "+QFileInfo(suggested).fileName());create->setObjectName("createSiblingOutput");create->setEnabled(sorting_.ready()&&!suggested.isEmpty()&&root!=suggested);create->setToolTip(QDir::toNativeSeparators(suggested));
+    connect(create,&QAction::triggered,this,[this,suggested]{
+        if(!QDir().mkpath(suggested)){viewer_->showToast("Could not create the output folder. Check folder permissions.");return;}
+        auto config=sorting_.config();config.outputRoot=suggested;
+        if(sorting_.configure(config))viewer_->showToast("Output folder ready");
+    });
     auto* change=menu.addAction(uiIcon("settings"),"Change output folder…");change->setObjectName("changeOutputFolder");change->setEnabled(sorting_.ready());
     connect(change,&QAction::triggered,this,[this,root]{const auto selected=QFileDialog::getExistingDirectory(this,"Change output folder",root);if(selected.isEmpty())return;auto config=sorting_.config();config.outputRoot=selected;sorting_.configure(config);});
     menu.ensurePolished();
@@ -346,7 +363,7 @@ void MainWindow::syncSavedDestinations(){
     // Saved copies remain removable even after their shortcut mapping is deleted.
     QSet<QString> configured;for(const auto& folder:sorting_.config().folders)configured.insert(folder.id);
     QHash<QString,ProcessingTask> saved;const int index=controller_.index();
-    if(index>=0)for(const auto& task:sorting_.assignments(controller_.catalog()[index].id))if(!configured.contains(task.categoryId))saved.insert(task.categoryId,task);
+    if(index>=0)for(const auto& task:sorting_.assignments(controller_.catalog()[index].id))if(!configured.contains(task.categoryId)&&!sorting_.destinationHidden(task.categoryId))saved.insert(task.categoryId,task);
     bool changed=false;QSet<QString> present;
     for(int i=destinationsLayout_->count()-1;i>=0;--i){auto* widget=destinationsLayout_->itemAt(i)->widget();if(!widget||!widget->property("savedDestination").toBool())continue;
         const auto id=widget->property("destinationId").toString();
@@ -360,6 +377,7 @@ void MainWindow::syncSavedDestinations(){
         int position=destinationsLayout_->count()-1;for(int i=0;i<destinationsLayout_->count();++i)if(auto* widget=destinationsLayout_->itemAt(i)->widget();widget&&widget->objectName()=="quickAddDestination"){position=i;break;}
         destinationsLayout_->insertWidget(position,chip);destinationsLayout_->insertWidget(position+1,count);destinationCounts_.insert(task.categoryId,count);
         connect(chip,&QPushButton::clicked,this,[this,id=task.categoryId]{toggleDestination(id);viewer_->setFocus();});changed=true;
+        chip->setContextMenuPolicy(Qt::CustomContextMenu);connect(chip,&QPushButton::customContextMenuRequested,this,[this,chip,id=task.categoryId](const QPoint& point){destinationMenu(id,chip->mapToGlobal(point));});
     }
     if(changed){QHash<QString,QString> paths;for(int i=0;i<destinationsLayout_->count();++i)if(auto* widget=destinationsLayout_->itemAt(i)->widget();widget&&widget->property("destinationChip").toBool())paths.insert(widget->property("destinationId").toString(),widget->property("destinationPath").toString());destinationCounter_->setFolders(paths,sorting_.config().outputRoot);}
 }
@@ -504,8 +522,10 @@ void MainWindow::rebuildDestinations() {
     }
     if(!shortcuts_->setDestinations(bindings,error)){lastProblem_=error;updateQueue();}
     editPanel_->setShortcutBindings(shortcuts_->editBindings());
-    if(bindings.isEmpty())destinationsLayout_->addWidget(new QLabel("Add a sorting folder",this));
-    auto* add=new QPushButton(uiIcon("plus"),QString(),this);add->setObjectName("quickAddDestination");add->setFixedSize(28,28);add->setFocusPolicy(Qt::NoFocus);add->setToolTip("Create sorting folder");add->setAccessibleName("Create sorting folder");add->setEnabled(sorting_.ready());destinationsLayout_->addWidget(add);
+    if(bindings.isEmpty()&&!folder_.isEmpty()){
+        auto* reuse=new QPushButton(uiIcon("folder"),"Reuse folders",this);reuse->setObjectName("reuseFolders");reuse->setFocusPolicy(Qt::NoFocus);reuse->setEnabled(sorting_.ready());reuse->setToolTip("Reuse previous folder names or import existing subfolder names");destinationsLayout_->addWidget(reuse);connect(reuse,&QPushButton::clicked,this,[this,reuse]{reuseFolderMenu(reuse);});
+    }
+    auto* add=new QPushButton(uiIcon("plus"),bindings.isEmpty()?"New folder":QString(),this);add->setObjectName("quickAddDestination");if(!bindings.isEmpty())add->setFixedSize(28,28);else add->setFixedHeight(28);add->setFocusPolicy(Qt::NoFocus);add->setToolTip("Create sorting folder");add->setAccessibleName("Create sorting folder");add->setEnabled(sorting_.ready());destinationsLayout_->addWidget(add);
     connect(add,&QPushButton::clicked,this,[this]{editDestination();});
     destinationsLayout_->addStretch();
     destinationCounter_->setFolders(folderPaths,sorting_.config().outputRoot);
@@ -514,8 +534,41 @@ void MainWindow::rebuildDestinations() {
 void MainWindow::destinationMenu(const QString& id,const QPoint& position){
     QMenu menu(this);menu.setObjectName("destinationContextMenu");
     auto* rename=menu.addAction("Rename…");rename->setObjectName("renameDestination");
+    bool configured=false;for(const auto& folder:sorting_.config().folders)if(folder.id==id)configured=true;rename->setEnabled(configured&&sorting_.ready());
     connect(rename,&QAction::triggered,this,[this,id]{editDestination(id);});
+    auto* remove=menu.addAction("Remove");remove->setObjectName("removeDestination");remove->setEnabled(sorting_.ready());remove->setToolTip("Remove from the footer. Keep the folder and its files.");
+    connect(remove,&QAction::triggered,this,[this,id]{if(sorting_.removeDestination(id)){viewer_->showToast("Folder removed from footer");viewer_->setFocus();}});
     menu.exec(position);
+}
+void MainWindow::reuseFolderMenu(QWidget* button){
+    QMenu menu(this);menu.setObjectName("reuseFoldersMenu");
+    const auto previous=sorting_.reusableFolders();
+    auto* reuse=menu.addAction("Previous folder names");reuse->setObjectName("reusePreviousFolders");reuse->setEnabled(!previous.isEmpty());
+    connect(reuse,&QAction::triggered,this,[this,previous]{reuseFolders(previous);});
+    auto* import=menu.addAction("From a folder…");import->setObjectName("importFolderNames");import->setToolTip("Reuse immediate subfolder names in the current output folder");
+    connect(import,&QAction::triggered,this,[this]{
+        const auto root=QFileDialog::getExistingDirectory(this,"Reuse subfolder names",sorting_.config().outputRoot);if(root.isEmpty())return;
+        QVector<Destination> folders;
+        const auto entries=QDir(root).entryInfoList(QDir::Dirs|QDir::NoDotAndDotDot|QDir::NoSymLinks,QDir::Name|QDir::IgnoreCase);
+        for(const auto& entry:entries)if(validateFolderName(entry.fileName()).isEmpty())folders.append({{},entry.fileName(),{}});
+        if(folders.isEmpty()){viewer_->showToast("No usable subfolders found");return;}
+        reuseFolders(folders);
+    });
+    menu.exec(button->mapToGlobal(QPoint(0,0))-QPoint(0,menu.sizeHint().height()+6));
+}
+void MainWindow::reuseFolders(const QVector<Destination>& folders){
+    auto config=sorting_.config();
+    if(config.outputRoot.isEmpty()){
+        const auto suggested=suggestedOutputFolder();
+        if(suggested.isEmpty()||!QDir().mkpath(suggested)){viewer_->showToast("Choose an output folder first");return;}
+        config.outputRoot=suggested;
+    }
+    for(auto folder:folders){
+        bool duplicate=false;for(const auto& existing:config.folders)if(existing.name.compare(folder.name,Qt::CaseInsensitive)==0)duplicate=true;
+        if(duplicate)continue;
+        folder.id=newId();folder.shortcut.clear();folder.alternateShortcut.clear();folder.shortcut=shortcuts_->nextDestinationKey(config);config.folders.append(folder);
+    }
+    if(sorting_.configure(config))viewer_->showToast("Folder names restored");
 }
 void MainWindow::editDestination(const QString& id){
     if(!sorting_.ready())return;
@@ -603,13 +656,15 @@ void MainWindow::editingAction(const QString& action){
     if(!feedback.isEmpty())viewer_->showToast(feedback);
 }
 void MainWindow::showShortcuts(){
+    auto* toggle=findChild<QPushButton*>("allShortcuts");
     if(!shortcutsDialog_){
-        auto* dialog=new ShortcutsDialog(shortcuts_,&sorting_,this);shortcutsDialog_=dialog;
-        dialog->setWindowModality(Qt::WindowModal);dialog->setProperty("suspendPhotoShortcuts",true);
-        dialog->setAttribute(Qt::WA_DeleteOnClose);
-        connect(dialog,&QDialog::finished,this,[this]{editPanel_->setShortcutBindings(shortcuts_->editBindings());activateWindow();viewer_->setFocus();});
+        auto* dialog=new ShortcutsDialog(shortcuts_,&sorting_,shortcutsScroll_);shortcutsDialog_=dialog;
+        dialog->setWindowFlags(Qt::Widget);dialog->setWindowModality(Qt::NonModal);dialog->setProperty("suspendPhotoShortcuts",true);shortcutsScroll_->setWidget(dialog);
+        connect(dialog,&QDialog::finished,this,[this,toggle]{shortcutsScroll_->hide();toggle->setChecked(false);editPanel_->setShortcutBindings(shortcuts_->editBindings());layoutPhotoTools();viewer_->setFocus();});
     }
-    shortcutsDialog_->show();shortcutsDialog_->raise();shortcutsDialog_->activateWindow();
+    const bool visible=toggle->isChecked();
+    if(visible){findChild<QPushButton*>("toggleEdit")->setChecked(false);shortcutsDialog_->show();}
+    shortcutsScroll_->setVisible(visible);layoutPhotoTools();viewer_->setFocus();
 }
 void MainWindow::applyViewerPreferences(){
     const auto preferences=sorting_.uiPreferences();const auto position=preferences.value("filmstripPosition").toString("left");
@@ -632,17 +687,19 @@ void MainWindow::togglePhotoPopup(bool histogram){
     layoutPhotoTools();if(!hide)informationTools_->verticalScrollBar()->setValue(0);
 }
 void MainWindow::layoutPhotoTools(){
-    const bool info=!photoPopup_->isHidden(),editing=!editScroll_->isHidden();
-    const int cardWidth=info&&editing?qMin(336,qMax(180,(viewer_->width()-52)/2)):336;
-    photoPopup_->setProperty("cardWidth",cardWidth);editScroll_->setFixedWidth(cardWidth);
+    const bool info=!photoPopup_->isHidden(),editing=!editScroll_->isHidden(),shortcuts=!shortcutsScroll_->isHidden();
+    const int cardWidth=info&&(editing||shortcuts)?qMin(336,qMax(220,(viewer_->width()-52)/2)):336;
+    photoPopup_->setProperty("cardWidth",cardWidth);editScroll_->setFixedWidth(cardWidth);shortcutsScroll_->setFixedWidth(cardWidth);
     photoPopup_->reposition();
     editScroll_->setFixedHeight(qMax(editPanel_->sizeHint().height(),editPanel_->minimumSizeHint().height())+12);
+    shortcutsScroll_->setFixedHeight(qMax(240,qMin(610,viewer_->height()-24)));
     const int railWidth=cardWidth+8,height=qMax(100,viewer_->height()-24);
     photoTools_->setGeometry(qMax(0,viewer_->width()-railWidth-12),12,railWidth,height);
     informationTools_->setGeometry(12,12,railWidth,height);
-    photoTools_->setVisible(editing);informationTools_->setVisible(info);photoTools_->raise();informationTools_->raise();
+    photoTools_->setVisible(editing||shortcuts);informationTools_->setVisible(info);photoTools_->raise();informationTools_->raise();
 }
 void MainWindow::configureEditingShortcuts(){
+    findChild<QPushButton*>("allShortcuts")->setChecked(true);
     showShortcuts();
     shortcutsDialog_->showCategory(ShortcutsDialog::Editing);
 }

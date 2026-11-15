@@ -2,6 +2,7 @@
 #include "watermark_dialog.h"
 #include "photo_viewer.h"
 #include "sorting_controller.h"
+#include "saved_folder_fixture.h"
 #include "main_window.h"
 #include "settings_dialog.h"
 #include "folder_scanner.h"
@@ -82,6 +83,7 @@ private slots:
             QVERIFY(store.saveWatermark({},error));QVERIFY(store.setMetadata("folder_initialized","1",error));}
         {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.configure(config(dir.filePath("out"))));
             QVERIFY(c.setWatermark(original));QVERIFY(c.openFolderSession(first));QVERIFY(c.watermark()==original);
+            QVERIFY(c.configure(config(dir.filePath("out"))));
             QVERIFY(!c.assign(photo,"club").isEmpty());QVERIFY(c.setWatermark(latest));
             QVERIFY(c.openFolderSession(second));QVERIFY(c.watermark()==latest);
             QVERIFY(c.openFolderSession(first));QVERIFY(c.watermark()==latest);
@@ -296,6 +298,7 @@ private slots:
         QTemporaryDir dir;QVERIFY(QDir().mkpath(dir.filePath("input")));QVERIFY(solid({1200,800}).save(dir.filePath("input/IMG_1.jpg")));QVERIFY(solid({800,1200}).save(dir.filePath("input/IMG_2.jpg")));
         const auto database=dir.filePath("session.sqlite");QString error;auto wm=logo();
         {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.saveWatermark(wm,error));}
+        QVERIFY(saveFolderConfig(database,dir.filePath("input"),config(dir.filePath("out"))));
         MainWindow window(8*1024*1024,nullptr,database);window.resize(1200,820);window.show();window.openFolder(dir.filePath("input"));QTest::qWait(400);
         auto* viewer=window.findChild<PhotoViewer*>();QVERIFY(viewer);QVERIFY(!redBounds(frame(*viewer)).isEmpty());
         window.findChild<QAction*>("watermarkSettings")->trigger();auto* dialog=window.findChild<WatermarkDialog*>();QVERIFY(dialog);QVERIFY(!dialog->isModal());

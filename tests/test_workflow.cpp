@@ -1,4 +1,5 @@
 #include "sorting_controller.h"
+#include "saved_folder_fixture.h"
 #include "main_window.h"
 #include "photo_viewer.h"
 #include "edit_panel.h"
@@ -30,6 +31,8 @@
 #include <QTabBar>
 #include <QLineEdit>
 #include <QJsonDocument>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <atomic>
 using namespace photocull;
 namespace {
@@ -41,7 +44,7 @@ DestinationConfig config(const QString& root){return {root,{{"a","A","1"},{"b","
 class WorkflowTest:public QObject {
     Q_OBJECT
 private slots:
-    void headerMenusAreModalWindows(){
+    void settingsWindowAndShortcutsPanel(){
         QTemporaryDir dir;
         MainWindow window(12*1024*1024,nullptr,dir.filePath("session.sqlite"));window.show();
         auto* viewer=window.findChild<PhotoViewer*>();
@@ -55,9 +58,12 @@ private slots:
             dialog->close();QTRY_VERIFY(dialog.isNull());
             shortcuts->click();QVERIFY(viewer->isVisible());
             QPointer<QDialog> reference=window.findChild<QDialog*>("shortcutReference");QVERIFY(reference&&reference->isVisible());
-            QVERIFY(reference->isWindow());QCOMPARE(reference->windowModality(),Qt::WindowModal);QTRY_COMPARE(QApplication::activeModalWidget(),reference.data());
+            QVERIFY(!reference->isWindow());QCOMPARE(reference->windowModality(),Qt::NonModal);QVERIFY(!QApplication::activeModalWidget());QVERIFY(reference->width()<=336);
+            auto* table=reference->findChild<QTableWidget*>();auto* tabs=reference->findChild<QTabBar*>();
+            for(const auto size:{QSize(640,480),QSize(1280,800)}){window.resize(size);for(int category=0;category<3;++category){tabs->setCurrentIndex(category);QTest::qWait(30);QCOMPARE(table->horizontalScrollBar()->maximum(),0);QVERIFY(!table->horizontalScrollBar()->isVisible());QVERIFY(table->horizontalHeader()->length()<=table->viewport()->width());QVERIFY(window.findChild<QScrollArea*>("shortcutsCard")->width()<=336);}}
+            const auto capture=qEnvironmentVariable("SURESORT_UI_CAPTURE");if(!capture.isEmpty())window.grab().save(QDir(capture).filePath("shortcuts-panel.png"));
             QTest::keyClick(reference,Qt::Key_Escape);QVERIFY(viewer->isVisible());
-            QTRY_VERIFY(reference.isNull());
+            QTRY_VERIFY(!reference->isVisible());
         }
         window.shutdown();
     }
@@ -95,7 +101,7 @@ private slots:
             name=dialog->findChild<QLineEdit*>("quickFolderName");QTest::keyClicks(name,"Canceled");
             QTest::keyClick(name,Qt::Key_Escape);QTRY_VERIFY(dialog.isNull());QVERIFY(!QFileInfo::exists(dir.filePath("output/Canceled")));
             QPushButton* chip=nullptr;for(auto* button:window.findChildren<QPushButton*>())if(button->property("destinationChip").toBool())chip=button;QVERIFY(chip);
-            QTimer::singleShot(0,&window,[&]{auto* menu=window.findChild<QMenu*>("destinationContextMenu");QVERIFY(menu);QCOMPARE(menu->actions().size(),1);for(auto* action:menu->actions())QVERIFY(!action->text().contains("delete",Qt::CaseInsensitive));QVERIFY(!menu->findChild<QAction*>("destinationMode_move"));menu->close();});
+            QTimer::singleShot(0,&window,[&]{auto* menu=window.findChild<QMenu*>("destinationContextMenu");QVERIFY(menu);QCOMPARE(menu->actions().size(),2);QVERIFY(menu->findChild<QAction*>("removeDestination"));for(auto* action:menu->actions())QVERIFY(!action->text().contains("delete",Qt::CaseInsensitive));QVERIFY(!menu->findChild<QAction*>("destinationMode_move"));menu->close();});
             QMetaObject::invokeMethod(chip,"customContextMenuRequested",Q_ARG(QPoint,QPoint(5,5)));
             QTRY_VERIFY(window.findChildren<QPushButton*>().size()>0);QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
             auto* reset=window.findChild<QPushButton*>("resetPhotoEdits");QVERIFY(!reset->isVisible());window.activateWindow();viewer->setFocus();
@@ -140,6 +146,7 @@ private slots:
         const auto input=dir.filePath("input"),database=dir.filePath("session.sqlite");
         QVERIFY(QDir().mkpath(input));QVERIFY(write(input+"/photo.jpg",jpeg()));
         QString error;{SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config(dir.filePath("out")),error));}
+        QVERIFY(saveFolderConfig(database,input,config(dir.filePath("out"))));
         auto capture=[&](const QString& name,QWidget* widget){const auto path=qEnvironmentVariable("SURESORT_UI_CAPTURE");if(!path.isEmpty()){QTest::qWait(150);QVERIFY(widget->grab().save(QDir(path).filePath(name+".png")));}};
         {
             MainWindow window(12*1024*1024,nullptr,database);window.show();window.openFolder(input);
@@ -159,7 +166,7 @@ private slots:
             settings->close();QTRY_VERIFY(settings.isNull());
             window.findChild<QPushButton*>("allShortcuts")->click();
             QPointer<QDialog> reference=window.findChild<QDialog*>("shortcutReference");QVERIFY(reference);
-            QVERIFY(reference->isWindow());QCOMPARE(reference->windowModality(),Qt::WindowModal);QVERIFY(!window.findChild<QLabel*>("appLogo"));
+            QVERIFY(!reference->isWindow());QCOMPARE(reference->windowModality(),Qt::NonModal);QVERIFY(!window.findChild<QLabel*>("appLogo"));
             auto* table=reference->findChild<QTableWidget*>();QCOMPARE(table->columnCount(),3);
             QCOMPARE(table->rowCount(),5);QVERIFY(!reference->findChild<QWidget*>("shortcutEditor"));capture("shortcuts",reference);
             auto* tabs=reference->findChild<QTabBar*>("shortcutCategories");QCOMPARE(tabs->count(),3);
@@ -173,7 +180,7 @@ private slots:
                 for(int i=0;i<table->rowCount();++i)if(table->item(i,0)->data(Qt::UserRole+1).toString()==id){
                     table->scrollToItem(table->item(i,slot+1));
                     QTest::mouseClick(table->viewport(),Qt::LeftButton,Qt::NoModifier,table->visualItemRect(table->item(i,slot+1)).center());
-                    QTest::mouseDClick(table->viewport(),Qt::LeftButton,Qt::NoModifier,table->visualItemRect(table->item(i,slot+1)).center());return;
+                    return;
                 }
                 QFAIL("Shortcut cell not found");
             };
@@ -182,6 +189,11 @@ private slots:
             key(Qt::Key_Left);QVERIFY(reference->findChild<QLabel*>("shortcutToast")->isVisible());
             auto* manager=window.findChild<ShortcutManager*>();QVERIFY(manager);
             QCOMPARE(manager->appBindings()[0].toObject()["trigger"].toString(),QString("Right"));capture("shortcut-conflict",&window);
+            // Long modifier combinations wrap vertically when both viewer cards are open.
+            edit("next");auto* longKey=reference->findChild<QLineEdit*>("shortcutCapture");QVERIFY(longKey);QTest::keyClick(longKey,Qt::Key_PageDown,Qt::ControlModifier|Qt::AltModifier|Qt::ShiftModifier);QCoreApplication::processEvents();QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+            window.resize(640,480);window.findChild<QPushButton*>("photoInfoButton")->click();QTest::qWait(50);
+            QCOMPARE(table->horizontalScrollBar()->maximum(),0);QVERIFY2(reference->width()<=window.findChild<QScrollArea*>("shortcutsCard")->viewport()->width(),qPrintable(QString("Shortcut panel width %1 exceeds viewport %2").arg(reference->width()).arg(window.findChild<QScrollArea*>("shortcutsCard")->viewport()->width())));QVERIFY(table->rowHeight(0)>=100);capture("shortcuts-narrow",&window);
+            window.findChild<QPushButton*>("photoInfoButton")->click();window.resize(1280,800);
             edit("next");key(Qt::Key_PageDown);
             QCOMPARE(manager->appBindings()[0].toObject()["trigger"].toString(),QString("PgDown"));
             edit("next",1);key(Qt::Key_PageUp);
@@ -192,12 +204,12 @@ private slots:
             edit("edit:exposureUp",1);chord(Qt::Key_Down);
             QCOMPARE(manager->editBindings()[0].toObject()["hold"].toString(),QString("U"));
             edit("zoomIn",1);key(Qt::Key_Delete);
-            reference->close();QTRY_VERIFY(reference.isNull());
+            reference->close();QTRY_VERIFY(!reference->isVisible());
             window.findChild<QPushButton*>("toggleEdit")->setChecked(true);
             window.findChild<QPushButton*>("editingShortcutsButton")->click();reference=window.findChild<QDialog*>("shortcutReference");QVERIFY(reference);
             QCOMPARE(reference->findChild<QTabBar*>("shortcutCategories")->currentIndex(),2);QCOMPARE(reference->findChild<QTableWidget*>()->accessibleName(),QString("Editing shortcuts"));
             capture("editing-category",&window);
-            reference->close();QTRY_VERIFY(reference.isNull());
+            reference->close();QTRY_VERIFY(!reference->isVisible());
             window.activateWindow();viewer->setFocus();
             QTest::keyPress(viewer,Qt::Key_U);QTest::keyClick(viewer,Qt::Key_Up);QTest::keyRelease(viewer,Qt::Key_U);QCOMPARE(viewer->edits().exposure,7);
             QTest::keyPress(viewer,Qt::Key_B);QTest::keyClick(viewer,Qt::Key_Right);QTest::keyRelease(viewer,Qt::Key_B);QCOMPARE(viewer->edits().brightness,7);

@@ -1,4 +1,5 @@
 #include "sorting_controller.h"
+#include "saved_folder_fixture.h"
 #include "main_window.h"
 #include "photo_popup.h"
 #include "photo_viewer.h"
@@ -16,6 +17,7 @@
 #include <QDir>
 #include <QFile>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QSqlQuery>
 #include <QTableWidget>
@@ -40,7 +42,7 @@ class FolderProgressTest:public QObject{
 private slots:
     void outputMenuToastAndNoUndo(){
         QTemporaryDir dir;const auto input=dir.filePath("input"),output=dir.filePath("out"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));QVERIFY(QDir().mkpath(output));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));
-        {SessionStore store;QString error;QVERIFY(store.open(profile,error));auto config=destinations(output);for(int i=0;i<30;++i)config.folders.append({QString("extra%1").arg(i),QString("Long folder name %1").arg(i),{}});QVERIFY(store.saveConfig(config,error));}
+        auto config=destinations(output);for(int i=0;i<30;++i)config.folders.append({QString("extra%1").arg(i),QString("Long folder name %1").arg(i),{}});QVERIFY(saveFolderConfig(profile,input,config));
         {MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();QTRY_VERIFY(viewer->hasPhoto());QVERIFY(!window.findChild<QPushButton*>("undoAction"));
             auto* path=window.findChild<QPushButton*>("outputFolder");QVERIFY(path);QVERIFY(path->isVisible());QVERIFY(path->width()<=360);QVERIFY(path->height()<=28);
             QTimer::singleShot(0,&window,[&]{auto* menu=window.findChild<QMenu*>("outputFolderMenu");QVERIFY(menu);QVERIFY(menu->findChild<QAction*>("openOutputInExplorer")->isEnabled());QVERIFY(menu->findChild<QAction*>("changeOutputFolder")->isEnabled());capture(menu,"output-menu-refined");menu->close();});path->click();
@@ -54,6 +56,41 @@ private slots:
         {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QVERIFY(c.configure(destinations(dir.filePath("out"))));QSignalSpy saved(&c,&SortingController::copyCompleted);c.assign(photo,"a");c.assign(photo,"b");QTRY_COMPARE(c.remaining(),0);QCOMPARE(saved.size(),2);first=c.assignment(photo.id,"a").outputPath;c.savePosition(input,photo.id);c.shutdown();}
         const auto connection=newId();{auto db=QSqlDatabase::addDatabase("QSQLITE",connection);db.setDatabaseName(progress(input));QVERIFY(db.open());QSqlQuery q(db);QVERIFY(q.exec("CREATE TABLE undo_history(sequence INTEGER PRIMARY KEY,previous_task TEXT)"));QVERIFY(q.exec("PRAGMA user_version=1"));db.close();}QSqlDatabase::removeDatabase(connection);
         {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QCOMPARE(c.assignments(photo.id).size(),2);QCOMPARE(c.restoredPhoto(),photo.id);c.toggleAssignment(photo,"a");QTRY_COMPARE(c.assignments(photo.id).size(),1);QVERIFY(!QFileInfo::exists(first));QVERIFY(c.hasCompletedCopy(photo.id));QCOMPARE(readFile(input+"/photo.jpg"),photoBytes());c.shutdown();}
+    }
+    void freshFolderOffersReuseAndSiblingOutput(){
+        QTemporaryDir dir;const auto input=dir.filePath("Holiday"),output=dir.filePath("old-output"),profile=dir.filePath("profile.sqlite"),sibling=input+"_sorted";
+        QVERIFY(QDir().mkpath(input));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));
+        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.configure(destinations(output)));c.shutdown();}
+        QVERIFY(!QFileInfo::exists(progress(input)));QVERIFY(QDir().mkpath(sibling));QVERIFY(writeFile(sibling+"/keep.txt","existing file"));
+        {
+            MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(input);QTRY_VERIFY(window.findChild<PhotoViewer*>()->hasPhoto());
+            auto* reuse=window.findChild<QPushButton*>("reuseFolders");QVERIFY(reuse&&reuse->isVisible());QVERIFY(window.findChild<QPushButton*>("quickAddDestination")->text()=="New folder");
+            for(auto* button:window.findChildren<QPushButton*>())QVERIFY(!button->property("destinationChip").toBool());
+            capture(&window,"fresh-folder-choices");
+            QTimer::singleShot(0,&window,[&]{auto* menu=window.findChild<QMenu*>("outputFolderMenu");QVERIFY(menu);auto* create=menu->findChild<QAction*>("createSiblingOutput");QVERIFY(create&&create->isEnabled());QCOMPARE(create->text(),QString("Create Holiday_sorted"));create->trigger();menu->close();});window.findChild<QPushButton*>("outputFolder")->click();
+            QCOMPARE(readFile(sibling+"/keep.txt"),QByteArray("existing file"));
+            QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);reuse=window.findChild<QPushButton*>("reuseFolders");QVERIFY(reuse);
+            QTimer::singleShot(0,&window,[&]{auto* menu=window.findChild<QMenu*>("reuseFoldersMenu");QVERIFY(menu);auto* previous=menu->findChild<QAction*>("reusePreviousFolders");QVERIFY(previous&&previous->isEnabled());previous->trigger();menu->close();});reuse->click();
+            QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);QVERIFY(!window.findChild<QPushButton*>("reuseFolders"));
+            int count=0;for(auto* button:window.findChildren<QPushButton*>())if(button->property("destinationChip").toBool()){++count;QVERIFY(button->property("destinationPath").toString().startsWith(sibling+"/"));}QCOMPARE(count,2);
+            window.activateWindow();auto* viewer=window.findChild<PhotoViewer*>();viewer->setFocus();QTest::keyClick(viewer,Qt::Key_1);QTRY_VERIFY(QFileInfo::exists(sibling+"/Keep/photo.jpg"));capture(&window,"reused-folders");window.shutdown();
+        }
+        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QCOMPARE(c.config().outputRoot,sibling);QCOMPARE(c.config().folders.size(),2);QVERIFY(c.hasCompletedCopy(scanFolder(input).photos.first().id));}
+        const auto next=dir.filePath("Next shoot");QVERIFY(QDir().mkpath(next));QVERIFY(writeFile(next+"/photo.jpg",photoBytes()));
+        {MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(next);QTRY_VERIFY(window.findChild<PhotoViewer*>()->hasPhoto());QVERIFY(window.findChild<QPushButton*>("reuseFolders"));window.findChild<QPushButton*>("quickAddDestination")->click();auto* name=window.findChild<QLineEdit*>("quickFolderName");QVERIFY(name);name->setText("Portraits");QTest::keyClick(name,Qt::Key_Return);QTRY_VERIFY(!window.findChild<QLineEdit*>("quickFolderName"));window.shutdown();}
+        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(next));QCOMPARE(c.config().folders.size(),1);QCOMPARE(c.config().folders.first().name,QString("Portraits"));}
+    }
+    void removeFooterFolderPreservesCopiesAndProgress(){
+        QTemporaryDir dir;const auto input=dir.filePath("in"),output=dir.filePath("out"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));QVERIFY(writeFile(input+"/photo.jpg",photoBytes()));const auto photo=scanFolder(input).photos.first();
+        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QVERIFY(c.configure(destinations(output)));c.assign(photo,"a");QTRY_COMPARE(c.remaining(),0);c.shutdown();}
+        const auto copy=output+"/Keep/photo.jpg";const auto before=readFile(copy);
+        {MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();QTRY_VERIFY(viewer->hasPhoto());QPushButton* chip=nullptr;for(auto* button:window.findChildren<QPushButton*>())if(button->property("destinationChip").toBool()&&button->property("destinationId")=="a")chip=button;QVERIFY(chip);
+            QTimer::singleShot(0,&window,[&]{auto* menu=window.findChild<QMenu*>("destinationContextMenu");QVERIFY(menu);auto* remove=menu->findChild<QAction*>("removeDestination");QVERIFY(remove);capture(menu,"remove-folder-menu");remove->trigger();menu->close();});QMetaObject::invokeMethod(chip,"customContextMenuRequested",Q_ARG(QPoint,QPoint(5,5)));
+            QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);for(auto* button:window.findChildren<QPushButton*>())QVERIFY(!(button->property("destinationChip").toBool()&&button->property("destinationId")=="a"));
+            window.activateWindow();viewer->setFocus();QTest::keyClick(viewer,Qt::Key_1);QTest::qWait(50);QCOMPARE(readFile(copy),before);window.shutdown();}
+        {MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(input);QTRY_VERIFY(window.findChild<PhotoViewer*>()->hasPhoto());for(auto* button:window.findChildren<QPushButton*>())QVERIFY(!(button->property("destinationChip").toBool()&&button->property("destinationId")=="a"));window.shutdown();}
+        {SortingController c;QVERIFY(c.initialize(profile));QVERIFY(c.openFolderSession(input));QVERIFY(c.destinationHidden("a"));QCOMPARE(c.config().folders.size(),1);QVERIFY(c.hasCompletedCopy(photo.id,"a"));QCOMPARE(c.assignments(photo.id).size(),1);}
+        QCOMPARE(readFile(copy),before);QCOMPARE(readFile(input+"/photo.jpg"),photoBytes());QVERIFY(QFileInfo(output+"/Keep").isDir());
     }
     void independentFoldersShareOneWorker(){
         QTemporaryDir dir;const auto first=dir.filePath("one"),second=dir.filePath("two");QVERIFY(QDir().mkpath(first));QVERIFY(QDir().mkpath(second));QVERIFY(writeFile(first+"/a.jpg",photoBytes()));QVERIFY(writeFile(second+"/b.jpg",photoBytes()));const auto a=scanFolder(first).photos.first(),b=scanFolder(second).photos.first();std::atomic_int running{0},peak{0};
@@ -121,6 +158,7 @@ private slots:
     void copyFlightUsesPreviousPhotoAndAllowsNavigation(){
         QTemporaryDir dir;const auto input=dir.filePath("in"),output=dir.filePath("out"),profile=dir.filePath("profile.sqlite");QVERIFY(QDir().mkpath(input));for(int i=0;i<3;++i)QVERIFY(writeFile(input+QString("/photo_%1.jpg").arg(i),photoBytes()));const auto photos=scanFolder(input).photos;
         {SessionStore store;QString error;QVERIFY(store.open(profile,error));QVERIFY(store.saveConfig(destinations(output),error));}
+        QVERIFY(saveFolderConfig(profile,input,destinations(output)));
         MainWindow window(12*1024*1024,nullptr,profile);window.show();window.openFolder(input);auto* viewer=window.findChild<PhotoViewer*>();auto* strip=window.findChild<Filmstrip*>();QTRY_VERIFY(viewer->hasPhoto());window.activateWindow();viewer->setFocus();const auto sourceBounds=viewer->sortingBounds();QTest::keyClick(viewer,Qt::Key_1);
         QCOMPARE(strip->currentIndex(),1);auto* flight=window.findChild<CopyFlight*>("copyFlight");QVERIFY(flight);QCOMPARE(flight->property("photoId").toString(),photos[0].id);QCOMPARE(flight->property("destinationId").toString(),QString("a"));QVERIFY(!flight->snapshot().isNull());QVERIFY(flight->testAttribute(Qt::WA_TransparentForMouseEvents));QCOMPARE(flight->sourceRect().size().toSize(),sourceBounds.size());
         capture(&window,"copy-flight");QTest::keyClick(viewer,Qt::Key_Right);QCOMPARE(strip->currentIndex(),2);QTest::keyClick(viewer,Qt::Key_Left);QCOMPARE(strip->currentIndex(),1);QTRY_VERIFY(viewer->hasPhoto());QTest::keyClick(viewer,Qt::Key_2);QCOMPARE(strip->currentIndex(),2);QCOMPARE(window.findChildren<CopyFlight*>("copyFlight").size(),1);QCOMPARE(window.findChild<CopyFlight*>("copyFlight")->property("photoId").toString(),photos[1].id);

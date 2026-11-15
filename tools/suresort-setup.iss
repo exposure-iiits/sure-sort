@@ -1,6 +1,6 @@
-; Build with: ISCC /DAppSource="...\dist\Sure Sort 0.1.6" suresort-setup.iss
+; Build with: ISCC /DAppSource="...\dist\Sure Sort 0.1.7" suresort-setup.iss
 #ifndef AppSource
-  #define AppSource "..\dist\Sure Sort 0.1.6"
+  #define AppSource "..\dist\Sure Sort 0.1.7"
 #endif
 #define AppVersion GetStringFileInfo(AppSource + "\Sure Sort.exe", "FileVersion")
 
@@ -34,7 +34,7 @@ VersionInfoDescription=Sure Sort Installer
 Name: desktopicon; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 
 [Files]
-Source: "{#AppSource}\*"; DestDir: "{app}"; Excludes: "data\*,*.sqlite,*.sqlite-*,*.lock"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AppSource}\*"; DestDir: "{app}"; Excludes: "portable.ini,data\*,*.sqlite,*.sqlite-*,*.lock"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Sure Sort"; Filename: "{app}\Sure Sort.exe"; WorkingDir: "{app}"

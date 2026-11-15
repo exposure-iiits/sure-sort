@@ -6,8 +6,10 @@ Sure Sort is the desktop viewer and automatic sorting application; PhotoCull rem
 | --- | --- |
 | [USER_GUIDE.md](USER_GUIDE.md) | Sorting, editing, watermarking and saved progress |
 | [BUILDING.md](BUILDING.md) | Dependencies, building, running and packaging from source |
-| [RELEASE-0.1.6.md](RELEASE-0.1.6.md) | Current release changes |
-| [VALIDATION-0.1.6.md](VALIDATION-0.1.6.md) | Windows build and verification results |
+| [RELEASE-0.1.7.md](RELEASE-0.1.7.md) | Current release changes |
+| [VALIDATION-0.1.7.md](VALIDATION-0.1.7.md) | Current Windows build and verification results |
+| [RELEASE-0.1.6.md](RELEASE-0.1.6.md) | Previous release changes |
+| [VALIDATION-0.1.6.md](VALIDATION-0.1.6.md) | Previous Windows build and verification results |
 | [RELEASE-0.1.3.md](RELEASE-0.1.3.md) | Current local test build controls and changes |
 | [VALIDATION-0.1.3.md](VALIDATION-0.1.3.md) | Local Windows build and UI verification |
 | [VALIDATION-0.1.2.md](VALIDATION-0.1.2.md) | Release build and verification results |

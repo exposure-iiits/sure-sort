@@ -23,6 +23,9 @@ public:
     QStringList excludedFolders() const;
     bool hasCompletedCopy(const QString& photoId,const QString& destinationId={}) const;
     bool configure(const DestinationConfig& config);
+    QVector<Destination> reusableFolders() const;
+    bool removeDestination(const QString& id);
+    bool destinationHidden(const QString& id) const;
     bool renameDestination(const QString& id,const QString& name,QString& error);
     QString assign(const Photo& photo, const QString& destinationId);
     DestinationToggle toggleAssignment(const Photo& photo,const QString& destinationId);

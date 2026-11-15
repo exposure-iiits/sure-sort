@@ -1,4 +1,4 @@
-Sure Sort 0.1.6 - experimental macOS package
+Sure Sort 0.1.7 - experimental macOS package
 
 Drag Sure Sort.app onto Applications to install.
 This package is ad-hoc signed, without an Apple Developer ID or notarization.

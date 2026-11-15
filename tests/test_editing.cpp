@@ -4,6 +4,7 @@
 #include "edit_shortcuts_dialog.h"
 #include "shortcut_manager.h"
 #include "sorting_controller.h"
+#include "saved_folder_fixture.h"
 #include "main_window.h"
 #include "raw_fixture.h"
 #include <QApplication>
@@ -252,6 +253,7 @@ private slots:
     void windowWorkflowAndNavigation(){
         QTemporaryDir dir;const auto database=dir.filePath("session.sqlite");QVERIFY(QDir().mkpath(dir.filePath("input")));QVERIFY(pattern({1200,800}).save(dir.filePath("input/IMG_1.jpg")));QVERIFY(pattern({800,1200}).save(dir.filePath("input/IMG_2.jpg")));QString error;
         {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(config(dir.filePath("out")),error));QVERIFY(store.saveWatermark(watermark(),error));}
+        QVERIFY(saveFolderConfig(database,dir.filePath("input"),config(dir.filePath("out"))));
         MainWindow window(12*1024*1024,nullptr,database);window.show();window.openFolder(dir.filePath("input"));QTest::qWait(450);auto* viewer=window.findChild<PhotoViewer*>();QVERIFY(viewer);auto* panel=window.findChild<EditPanel*>();QVERIFY(panel);QVERIFY(!panel->isVisible());QTest::mouseClick(window.findChild<QPushButton*>("toggleEdit"),Qt::LeftButton);QVERIFY(panel->isVisible());
         viewer->setFocus();QTest::keyPress(viewer,Qt::Key_E);QTest::keyClick(viewer,Qt::Key_Right);QTest::keyRelease(viewer,Qt::Key_E);QCOMPARE(viewer->edits().exposure,5);
         QTest::keyClick(viewer,Qt::Key_Right);QTRY_VERIFY(viewer->edits().isIdentity());QTest::keyClick(viewer,Qt::Key_Left);QTRY_COMPARE(viewer->edits().exposure,5);
@@ -269,6 +271,7 @@ private slots:
     void legacyFolderKeyTakesPriority(){
         QTemporaryDir dir;const auto database=dir.filePath("session.sqlite");QVERIFY(QDir().mkpath(dir.filePath("input")));QVERIFY(pattern().save(dir.filePath("input/photo.jpg")));auto destinations=config(dir.filePath("out"));destinations.folders[0].shortcut="E";QString error;
         {SessionStore store;QVERIFY(store.open(database,error));QVERIFY(store.saveConfig(destinations,error));}
+        QVERIFY(saveFolderConfig(database,dir.filePath("input"),destinations));
         MainWindow window(8*1024*1024,nullptr,database);window.show();window.openFolder(dir.filePath("input"));QTest::qWait(300);auto* viewer=window.findChild<PhotoViewer*>();auto* manager=window.findChild<ShortcutManager*>();QVERIFY(manager);QVERIFY(manager->editBindings()[0].toObject()["trigger"].toString().isEmpty());
         QTest::keyClick(viewer,Qt::Key_E);QTRY_VERIFY(QFileInfo::exists(dir.filePath("out/Club/photo.jpg")));QVERIFY(viewer->edits().isIdentity());window.shutdown();
     }

@@ -96,7 +96,12 @@ bool SortingController::openFolderSession(const QString& folder,const std::funct
     if(!initialized){emit configChanged();return false;}
     context->uiPreferences_=uiPreferences_;
     if(context->store_.metadata("folder_initialized").isEmpty()){
-        if(!config_.outputRoot.isEmpty())context->configure(config_);
+        QJsonArray reusable;
+        for(const auto& destination:config_.folders)reusable.append(QJsonObject{{"name",destination.name},{"shortcut",destination.shortcut},{"alternate",destination.alternateShortcut}});
+        QString setupError;
+        if(!context->store_.setMetadata("reusable_folders",QString::fromUtf8(QJsonDocument(reusable).toJson(QJsonDocument::Compact)),setupError)){context->ready_=false;emit problem(setupError);return false;}
+        auto initial=config_;initial.folders.clear();
+        if(!initial.outputRoot.isEmpty()&&!context->configure(initial))return false;
         context->setOutput(output_);context->saveEditBindings(editBindings_);
         QString error;if(!context->store_.setMetadata("folder_initialized","1",error)){context->ready_=false;emit problem(error);return false;}
     }
@@ -107,6 +112,32 @@ bool SortingController::openFolderSession(const QString& folder,const std::funct
     savePosition(root,context->restoredPhoto_);saveSessionIndex();
     emit configChanged();emit watermarkChanged(watermark());emit progressChanged();return true;
 }
+QVector<Destination> SortingController::reusableFolders() const {
+    if(folderContext_)return folderContext_->reusableFolders();
+    QVector<Destination> folders;
+    const auto reusable=QJsonDocument::fromJson(store_.metadata("reusable_folders").toUtf8()).array();
+    for(const auto& value:reusable){const auto row=value.toObject();folders.append({{},row["name"].toString(),row["shortcut"].toString(),row["alternate"].toString()});}
+    return folders;
+}
+bool SortingController::destinationHidden(const QString& id) const {
+    if(folderContext_)return folderContext_->destinationHidden(id);
+    return QJsonDocument::fromJson(store_.metadata("hidden_destinations").toUtf8()).array().contains(id);
+}
+bool SortingController::removeDestination(const QString& id){
+    if(folderContext_){
+        if(!folderContext_->removeDestination(id))return false;
+        config_=folderContext_->config();QString error;
+        if(!store_.saveConfig(config_,error))emit problem(error);
+        return true;
+    }
+    if(!ready()||stopped_)return false;
+    auto hidden=QJsonDocument::fromJson(store_.metadata("hidden_destinations").toUtf8()).array();
+    if(!hidden.contains(id))hidden.append(id);
+    QString error;
+    if(!store_.setMetadata("hidden_destinations",QString::fromUtf8(QJsonDocument(hidden).toJson(QJsonDocument::Compact)),error)){emit problem(error);return false;}
+    auto config=config_;config.folders.erase(std::remove_if(config.folders.begin(),config.folders.end(),[&](const Destination& folder){return folder.id==id;}),config.folders.end());
+    return configure(config);
+}
 void SortingController::registerCatalog(const Catalog& photos){
     if(folderContext_)return folderContext_->registerCatalog(photos);
     if(!ready_||stopped_)return;
@@ -115,7 +146,13 @@ void SortingController::registerCatalog(const Catalog& photos){
     for(const auto& id:assignments_){auto task=tasks_.value(id);if(task.status=="completed"&&!QFileInfo::exists(task.outputPath)){task.status="missing";task.error="Copied file is missing: "+task.outputPath;if(!persist(task))return;}}
     emit assignmentChanged({});
 }
-QStringList SortingController::excludedFolders() const {QStringList paths;for(const auto& folder:config().folders)paths.append(QDir(config().outputRoot).filePath(folder.name));return paths;}
+QStringList SortingController::excludedFolders() const {
+    if(folderContext_)return folderContext_->excludedFolders();
+    QStringList paths;for(const auto& folder:config_.folders)paths.append(QDir(config_.outputRoot).filePath(folder.name));
+    // Removing a footer mapping must not re-import its saved copies as originals.
+    for(const auto& task:tasks_)if(!task.directory.isEmpty()&&!paths.contains(task.directory))paths.append(task.directory);
+    return paths;
+}
 bool SortingController::hasCompletedCopy(const QString& photoId,const QString& destinationId) const {
     for(const auto& task:assignments(photoId)){
         if(!destinationId.isEmpty()&&task.categoryId!=destinationId)continue;

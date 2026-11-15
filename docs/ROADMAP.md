@@ -12,6 +12,14 @@ Windows 11/MinGW verification and synthetic fixtures are recorded in [PERFORMANC
 | --- | --- | --- |
 | Further processing | Advanced development controls and further camera/performance validation | Extend the separate processing pipeline. Full-sensor RAW-to-JPEG is already implemented in Phase 2. |
 
+### Startup update prompt — planned
+
+Check for a newer published GitHub Release when Sure Sort opens, without delaying normal startup. If an update is available, show **Update / Later**. Download and verify the latest installer only after the user accepts, save the current session, close cleanly, and install the update. Reopen the same folder and photo with saved edits and sorting progress intact.
+
+Reuse the existing Windows installer. Preserve source photos, output files, app preferences, portable `data` folders and per-folder `.suresort-progress.sqlite` databases; back up databases before any required format migration. An offline connection or failed download leaves the current version usable. Do not force an update or restart during active work or an unfinished crop.
+
+The first scope is installed Windows builds. Portable and macOS update installation need separate handling. Users must install an updater-enabled version once before subsequent releases can use this flow. This feature is **not implemented in 0.1.7**; the updater library and detailed installation approach remain to be selected.
+
 ## Phase 2 — implemented, release validation pending
 
 Ordered destinations/custom shortcuts, automatic copying/full-sensor RAW-to-JPEG, auto-advance, separate processing workers, retries/cancellation, undo/clear/reassignment, collision-safe publication and SQLite session recovery are implemented. RAW+JPEG produces one JPEG. Sorting is copy-only and preserves originals.
